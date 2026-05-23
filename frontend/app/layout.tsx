@@ -1,24 +1,50 @@
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/toaster"
-import "./globals.css"
+import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: '--font-inter'
+})
 
 export const metadata: Metadata = {
-  title: "Hyre",
-  description: "Conecta con tu próxima oportunidad laboral",
+  title: 'HYRE - Demuestra tu potencial',
+  description: 'La plataforma Gen Z que conecta jovenes con oportunidades laborales mediante IA, simulaciones y entrevistas inteligentes.',
+  generator: 'HYRE',
+  keywords: ['empleo', 'jovenes', 'Gen Z', 'IA', 'simulaciones laborales', 'entrevistas IA', 'trabajo'],
+  authors: [{ name: 'HYRE Team' }],
+  icons: {
+    icon: [
+      {
+        url: '/icon-light-32x32.png',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/icon-dark-32x32.png',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
+    apple: '/apple-icon.png',
+  },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#0f0a1f',
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+    <html lang="es" className="dark bg-background">
+      <body className={`${inter.variable} font-sans antialiased bg-background`}>
+        {children}
       </body>
     </html>
   )
