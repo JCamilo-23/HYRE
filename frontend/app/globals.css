@@ -3,41 +3,32 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 1. BASE THEME (LIGHT)
+  Definimos una versión clara y profesional para el :root. 
+  Si tu app es 100% oscura, puedes omitir esto y dejar solo los colores dark en :root.
+*/
 :root {
-  /* HYRE Dark Theme - Gen Z Futuristic */
-  --background: oklch(0.08 0.01 280);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.12 0.015 280);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.10 0.012 280);
-  --popover-foreground: oklch(0.98 0 0);
+  --background: oklch(0.98 0.01 280);
+  --foreground: oklch(0.12 0.015 280);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.015 280);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.015 280);
   --primary: oklch(0.65 0.28 280);
   --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.18 0.02 280);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.15 0.015 280);
-  --muted-foreground: oklch(0.65 0 0);
+  --secondary: oklch(0.92 0.02 280);
+  --secondary-foreground: oklch(0.18 0.02 280);
+  --muted: oklch(0.92 0.02 280);
+  --muted-foreground: oklch(0.45 0.02 280);
   --accent: oklch(0.75 0.2 160);
   --accent-foreground: oklch(0.08 0 0);
   --destructive: oklch(0.55 0.25 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.22 0.02 280);
-  --input: oklch(0.15 0.015 280);
+  --border: oklch(0.85 0.02 280);
+  --input: oklch(0.85 0.02 280);
   --ring: oklch(0.65 0.28 280);
-  --chart-1: oklch(0.65 0.28 280);
-  --chart-2: oklch(0.75 0.2 160);
-  --chart-3: oklch(0.7 0.25 330);
-  --chart-4: oklch(0.8 0.15 80);
-  --chart-5: oklch(0.6 0.2 200);
+  
   --radius: 1rem;
-  --sidebar: oklch(0.10 0.012 280);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.65 0.28 280);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0.02 280);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.22 0.02 280);
-  --sidebar-ring: oklch(0.65 0.28 280);
   
   /* Custom HYRE colors */
   --hyre-glow: oklch(0.65 0.28 280);
@@ -46,6 +37,9 @@
   --hyre-green: oklch(0.75 0.2 160);
 }
 
+/* 2. DARK THEME (HYRE Gen Z Futuristic)
+  Aquí mantenemos tus colores originales que le dan esa identidad única.
+*/
 .dark {
   --background: oklch(0.08 0.01 280);
   --foreground: oklch(0.98 0 0);
@@ -61,29 +55,17 @@
   --muted-foreground: oklch(0.65 0 0);
   --accent: oklch(0.75 0.2 160);
   --accent-foreground: oklch(0.08 0 0);
-  --destructive: oklch(0.55 0.25 25);
-  --destructive-foreground: oklch(0.98 0 0);
   --border: oklch(0.22 0.02 280);
   --input: oklch(0.15 0.015 280);
-  --ring: oklch(0.65 0.28 280);
-  --chart-1: oklch(0.65 0.28 280);
-  --chart-2: oklch(0.75 0.2 160);
-  --chart-3: oklch(0.7 0.25 330);
-  --chart-4: oklch(0.8 0.15 80);
-  --chart-5: oklch(0.6 0.2 200);
-  --sidebar: oklch(0.10 0.012 280);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.65 0.28 280);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0.02 280);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.22 0.02 280);
-  --sidebar-ring: oklch(0.65 0.28 280);
 }
 
+/* 3. TAILWIND v4 THEME MAPPING */
 @theme inline {
   --font-sans: 'Inter', 'Geist', sans-serif;
   --font-mono: 'Geist Mono', monospace;
+  
+  /* Mapeo automático de colores */
+  --color-*: initial; /* Limpia defaults si es necesario */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -103,87 +85,94 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  
   --color-hyre-glow: var(--hyre-glow);
   --color-hyre-cyan: var(--hyre-cyan);
   --color-hyre-pink: var(--hyre-pink);
   --color-hyre-green: var(--hyre-green);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* 4. BASE LAYER & MATERIAL DEFAULTS */
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Suaviza cualquier cambio de estado (hover, focus) a nivel global */
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
+  
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    /* Evita saltos extraños en móviles al hacer scroll */
+    overscroll-behavior-y: none; 
   }
 }
 
-/* Glassmorphism utilities */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* 5. COMPONENTS: GLASSMORPHISM & MATERIAL ELEVATION */
+@layer components {
+  /* Mejora del Glass: Añadimos saturación para que los colores detrás no mueran */
+  .glass {
+    @apply bg-white/5 border border-white/10;
+    backdrop-filter: blur(20px) saturate(150%);
+  }
+
+  .glass-strong {
+    @apply bg-white/10 border border-white/15;
+    backdrop-filter: blur(30px) saturate(150%);
+  }
+
+  /* Material Elevations: 
+    En vez de solo glow, agregamos sombras estructurales sutiles. 
+    Usa estos en Cards, Dropdowns y Modales.
+  */
+  .elevation-1 {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  }
+  .elevation-2 {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  }
+  .elevation-3 {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Glow effects optimizados para usar las variables OKLCH dinámicas */
+  .glow-primary {
+    box-shadow: 0 0 40px oklch(from var(--primary) l c h / 0.3);
+  }
+  .glow-accent {
+    box-shadow: 0 0 40px oklch(from var(--accent) l c h / 0.3);
+  }
+  .glow-pink {
+    box-shadow: 0 0 40px oklch(from var(--hyre-pink) l c h / 0.3);
+  }
 }
 
-.glass-strong {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+/* 6. UTILITIES: SCROLLBARS & SAFE AREAS */
+@layer utilities {
+  /* Scrollbar más sutil y moderno */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary/30 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/50;
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 20px);
+  }
 }
 
-/* Glow effects */
-.glow-primary {
-  box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
-}
-
-.glow-accent {
-  box-shadow: 0 0 40px rgba(34, 197, 94, 0.3);
-}
-
-.glow-pink {
-  box-shadow: 0 0 40px rgba(236, 72, 153, 0.3);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
-}
-
-/* Safe area for mobile */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 20px);
-}
-
-.safe-area-top {
-  padding-top: env(safe-area-inset-top, 20px);
-}
