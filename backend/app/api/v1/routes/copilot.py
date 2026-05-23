@@ -1,15 +1,15 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 from app.api.v1.schemas import CopilotRequest, CopilotResponse
 from app.core.auth import get_current_user, get_supabase
-from app.infrastructure.openai.client import OpenAIClient
+from app.infrastructure.gemini.client import get_text_model
 import uuid
 
 router = APIRouter()
-_openai = OpenAIClient()
 
-SYSTEM_PROMPT = """Eres un coach de carrera experto que ayuda a candidatos a prepararse para entrevistas de trabajo.
-Proporciona feedback constructivo, tips específicos y practica preguntas de entrevista en español.
-Sé directo, motivador y profesional."""
+SYSTEM_PROMPT = """Eres HYRE Coach, un mentor de carrera experto para jovenes Gen Z que buscan trabajo.
+Ayudas a prepararse para entrevistas, mejorar el CV y desarrollar habilidades profesionales.
+Eres directo, motivador, usas lenguaje moderno pero profesional. Respondes siempre en español.
+Maximo 3 parrafos por respuesta."""
 
 
 @router.post("/message", response_model=CopilotResponse)
@@ -17,36 +17,35 @@ async def send_message(body: CopilotRequest, current_user=Depends(get_current_us
     supabase = get_supabase()
     session_id = body.session_id or str(uuid.uuid4())
 
-    # Load or create session
     result = supabase.client.table("copilot_sessions")\
         .select("messages")\
         .eq("id", session_id)\
         .eq("user_id", str(current_user.id))\
         .execute()
 
-    messages = result.data[0]["messages"] if result.data else []
-    messages.append({"role": "user", "content": body.message})
+    history = result.data[0]["messages"] if result.data else []
+    history.append({"role": "user", "content": body.message})
 
-    # Call OpenAI
-    response = await _openai.client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
-        max_tokens=500,
-    )
-    reply = response.choices[0].message.content
-    messages.append({"role": "assistant", "content": reply})
+    model = get_text_model()
+    chat_history = [
+        {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
+        for m in history[:-1]
+    ]
+    chat = model.start_chat(history=chat_history)
+    response = chat.send_message(f"{SYSTEM_PROMPT}\n\nUsuario: {body.message}")
+    reply = response.text
 
-    # Persist session
+    history.append({"role": "assistant", "content": reply})
+
     if result.data:
         supabase.client.table("copilot_sessions")\
-            .update({"messages": messages})\
-            .eq("id", session_id)\
-            .execute()
+            .update({"messages": history})\
+            .eq("id", session_id).execute()
     else:
         supabase.client.table("copilot_sessions").insert({
             "id": session_id,
             "user_id": str(current_user.id),
-            "messages": messages,
+            "messages": history,
         }).execute()
 
     return CopilotResponse(session_id=session_id, reply=reply)

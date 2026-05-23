@@ -14,67 +14,61 @@ import {
   Sparkles
 } from "lucide-react"
 import { Screen } from "@/app/page"
+import { useEffect } from "react"
+import { api } from "@/lib/api-client"
 
 interface MatchScreenProps {
   onNavigate: (screen: Screen) => void
+  onSelectJob: (jobId: string) => void
 }
 
-const companies = [
-  {
-    id: 1,
-    name: "TechCorp Colombia",
-    industry: "Tecnologia",
-    size: "51-200 empleados",
-    match: 94,
-    vacancy: "Desarrollador Frontend Jr",
-    description: "Empresa lider en desarrollo de software con cultura innovadora y ambiente colaborativo.",
-    culture: ["Innovador", "Colaborativo", "Flexible", "Remoto"],
-    benefits: ["Trabajo remoto", "Horario flexible", "Capacitacion pagada", "Seguro medico"],
-    location: "Bogota, Colombia",
-    logo: "T",
-    color: "#7C3AED",
-    bgGradient: "from-[#7C3AED]/30 to-[#06B6D4]/20",
-  },
-  {
-    id: 2,
-    name: "DesignLab Studio",
-    industry: "Diseno",
-    size: "11-50 empleados",
-    match: 89,
-    vacancy: "UX/UI Designer",
-    description: "Estudio de diseno digital enfocado en crear experiencias memorables para startups.",
-    culture: ["Creativo", "Dinamico", "Startup", "Internacional"],
-    benefits: ["Remoto hibrido", "Bonos", "Dias libres extra", "Gimnasio"],
-    location: "Medellin, Colombia",
-    logo: "D",
-    color: "#06B6D4",
-    bgGradient: "from-[#06B6D4]/30 to-[#10B981]/20",
-  },
-  {
-    id: 3,
-    name: "StartupXYZ",
-    industry: "Fintech",
-    size: "1-10 empleados",
-    match: 87,
-    vacancy: "Product Manager Jr",
-    description: "Fintech en crecimiento que esta revolucionando los pagos digitales en Latam.",
-    culture: ["Startup", "Agil", "Autonomo", "Competitivo"],
-    benefits: ["Equity", "Horario flexible", "Crecimiento rapido"],
-    location: "Remoto",
-    logo: "S",
-    color: "#10B981",
-    bgGradient: "from-[#10B981]/30 to-[#F59E0B]/20",
-  },
+const COLORS = ["#7C3AED", "#06B6D4", "#10B981", "#F59E0B", "#EC4899"]
+const GRADIENTS = [
+  "from-[#7C3AED]/30 to-[#06B6D4]/20",
+  "from-[#06B6D4]/30 to-[#10B981]/20",
+  "from-[#10B981]/30 to-[#F59E0B]/20",
 ]
 
-export function MatchScreen({ onNavigate }: MatchScreenProps) {
-  const [cards, setCards] = useState(companies)
+function jobToCard(job: any, index: number) {
+  return {
+    id: job.id,
+    name: job.title,
+    industry: job.location ?? "Remoto",
+    size: job.remote ? "Remoto" : "Presencial",
+    match: Math.floor(80 + Math.random() * 19),
+    vacancy: job.title,
+    description: job.description,
+    culture: (job.requirements ?? []).slice(0, 4),
+    benefits: job.remote ? ["Trabajo remoto", "Horario flexible"] : ["Presencial", "Beneficios"],
+    location: job.location ?? "Colombia",
+    logo: job.title[0].toUpperCase(),
+    color: COLORS[index % COLORS.length],
+    bgGradient: GRADIENTS[index % GRADIENTS.length],
+  }
+}
+
+const FALLBACK_CARDS = [
+  { id: "demo-1", name: "TechCorp Colombia", industry: "Tecnologia", size: "51-200", match: 94, vacancy: "Desarrollador Frontend Jr", description: "Empresa líder en desarrollo de software.", culture: ["React", "TypeScript"], benefits: ["Remoto", "Flex"], location: "Bogotá", logo: "T", color: "#7C3AED", bgGradient: "from-[#7C3AED]/30 to-[#06B6D4]/20" },
+  { id: "demo-2", name: "DesignLab Studio", industry: "Diseño", size: "11-50", match: 89, vacancy: "UX/UI Designer", description: "Estudio de diseño digital para startups.", culture: ["Figma", "Creativo"], benefits: ["Remoto", "Bonos"], location: "Medellín", logo: "D", color: "#06B6D4", bgGradient: "from-[#06B6D4]/30 to-[#10B981]/20" },
+]
+
+export function MatchScreen({ onNavigate, onSelectJob }: MatchScreenProps) {
+  const [cards, setCards] = useState<typeof FALLBACK_CARDS>(FALLBACK_CARDS)
+
+  useEffect(() => {
+    api.get<any[]>("/api/v1/jobs/")
+      .then((jobs) => {
+        if (jobs.length > 0) setCards(jobs.map(jobToCard))
+      })
+      .catch(() => {})
+  }, [])
   const [showMatch, setShowMatch] = useState(false)
-  const [matchedCompany, setMatchedCompany] = useState<typeof companies[0] | null>(null)
+  const [matchedCompany, setMatchedCompany] = useState<(typeof FALLBACK_CARDS)[0] | null>(null)
   const [expandedCard, setExpandedCard] = useState(false)
 
-  const handleSwipe = (direction: "left" | "right" | "up", company: typeof companies[0]) => {
+  const handleSwipe = (direction: "left" | "right" | "up", company: (typeof FALLBACK_CARDS)[0]) => {
     if (direction === "right" || direction === "up") {
+      onSelectJob(String(company.id))
       setMatchedCompany(company)
       setShowMatch(true)
     }
@@ -87,12 +81,13 @@ export function MatchScreen({ onNavigate }: MatchScreenProps) {
   const handleAction = (action: "reject" | "like" | "superlike") => {
     if (cards.length === 0) return
     const company = cards[0]
-    
+
     if (action === "like" || action === "superlike") {
+      onSelectJob(String(company.id))
       setMatchedCompany(company)
       setShowMatch(true)
     }
-    
+
     setCards((prev) => prev.slice(1))
   }
 
@@ -199,7 +194,7 @@ function SwipeCard({
   expanded,
   onToggleExpand
 }: { 
-  company: typeof companies[0]
+  company: typeof FALLBACK_CARDS[0]
   index: number
   onSwipe: (direction: "left" | "right" | "up") => void
   isTop: boolean
@@ -234,7 +229,7 @@ function SwipeCard({
         y: isTop ? y : 0,
         rotate: isTop ? rotate : 0,
         scale: 1 - index * 0.05,
-        zIndex: companies.length - index,
+        zIndex: 10 - index,
       }}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
@@ -308,7 +303,7 @@ function SwipeCard({
 
           {/* Culture chips */}
           <div className="flex flex-wrap gap-2 mb-4">
-            {company.culture.slice(0, 3).map((trait) => (
+            {company.culture.slice(0, 3).map((trait: string) => (
               <span key={trait} className="px-3 py-1 rounded-full bg-[#F1F5F9]/10 text-[#F1F5F9] text-xs">
                 {trait}
               </span>
@@ -361,7 +356,7 @@ function MatchModal({
   onClose,
   onSimulation
 }: { 
-  company: typeof companies[0]
+  company: typeof FALLBACK_CARDS[0]
   onClose: () => void
   onSimulation: () => void
 }) {

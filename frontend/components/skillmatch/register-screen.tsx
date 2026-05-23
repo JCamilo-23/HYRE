@@ -52,21 +52,25 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
   const handleSubmit = async () => {
     if (!validateForm()) return
-
     setIsLoading(true)
-    
-    // Simular un delay de registro
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    setIsLoading(false)
-    onComplete({ name: formData.name, email: formData.email })
+    try {
+      const { signUpWithEmail } = await import("@/modules/auth/client-actions")
+      await signUpWithEmail(formData.email, formData.password, formData.name, userType ?? "candidate")
+      onComplete({ name: formData.name, email: formData.email })
+    } catch (err: any) {
+      setErrors({ general: err.message ?? "Error al crear la cuenta" })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleSocialLogin = (provider: string) => {
-    // Para login social, usamos el nombre del proveedor como nombre temporal
-    const socialName = `Usuario de ${provider}`
-    const socialEmail = `usuario@${provider.toLowerCase()}.com`
-    onComplete({ name: socialName, email: socialEmail })
+  const handleSocialLogin = async (provider: string) => {
+    try {
+      const { signInWithOAuth } = await import("@/modules/auth/client-actions")
+      await signInWithOAuth(provider.toLowerCase() as "google" | "apple")
+    } catch (err: any) {
+      setErrors({ general: err.message ?? "Error con login social" })
+    }
   }
 
   if (mode === "options") {

@@ -18,6 +18,7 @@ import { Screen } from "@/app/page"
 
 interface SimulationScreenProps {
   onNavigate: (screen: Screen) => void
+  jobId?: string | null
 }
 
 type SimulationState = "intro" | "active" | "challenge" | "complete"
@@ -107,7 +108,7 @@ const challenges = [
   },
 ]
 
-export function SimulationScreen({ onNavigate }: SimulationScreenProps) {
+export function SimulationScreen({ onNavigate, jobId }: SimulationScreenProps) {
   const [state, setState] = useState<SimulationState>("intro")
   const [currentChallenge, setCurrentChallenge] = useState<typeof challenges[0] | null>(null)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)

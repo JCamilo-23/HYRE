@@ -47,40 +47,27 @@ export function MentorScreen({ onNavigate, userData }: MentorScreenProps) {
     scrollToBottom()
   }, [messages])
 
+  const sessionIdRef = useRef<string | undefined>(undefined)
+
   const handleSend = async (text?: string) => {
     const messageText = text || input
     if (!messageText.trim()) return
 
-    const userMessage: Message = {
-      id: messages.length + 1,
-      role: "user",
-      content: messageText,
-    }
-
+    const userMessage: Message = { id: messages.length + 1, role: "user", content: messageText }
     setMessages((prev) => [...prev, userMessage])
     setInput("")
     setIsTyping(true)
 
-    // Simulate AI response
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    const responses: Record<string, string> = {
-      "Como puedo mejorar mi score?": `Basado en tu ultimo reporte ${firstName}, te recomiendo enfocarte en: 1) Dar respuestas mas estructuradas usando el metodo STAR. 2) Practicar mantener contacto visual durante la camara. 3) Incluir mas ejemplos concretos de tu experiencia. Si mejoras tu comunicacion un 10%, podrias acceder a 8 empresas mas!`,
-      "Preparame para mi proxima entrevista": `Claro ${firstName}! Para tu entrevista con TechCorp, te sugiero: 1) Prepara 3 historias de exito de proyectos anteriores. 2) Investiga sobre su cultura de trabajo remoto. 3) Ten preguntas listas sobre el equipo y los proyectos. Quieres que practiquemos algunas preguntas comunes?`,
-      "Que habilidades debo desarrollar?": `Analizando tu perfil ${firstName} y las vacantes que te interesan, te recomiendo: 1) React avanzado - 12 empresas mas buscan esto. 2) Testing con Jest - muy valorado en TechCorp. 3) Soft skills de liderazgo - tu score actual es 72%, mejorar esto te abrira puertas a roles senior.`,
-      "Analiza mi perfil": `Tu perfil tiene fortalezas claras ${firstName}: comunicacion (92%) y trabajo en equipo (88%). Areas de mejora: liderazgo (72%) y TypeScript (78%). Tu tasa de matches es buena - 5 en la ultima semana. Recomendacion: completa tu video de presentacion para aumentar matches 3x.`,
+    try {
+      const { sendCopilotMessage } = await import("@/modules/copilot")
+      const data = await sendCopilotMessage(messageText, sessionIdRef.current)
+      sessionIdRef.current = data.session_id
+      setMessages((prev) => [...prev, { id: prev.length + 1, role: "assistant", content: data.reply }])
+    } catch {
+      setMessages((prev) => [...prev, { id: prev.length + 1, role: "assistant", content: "Hubo un error al conectar con el mentor. Intenta de nuevo." }])
+    } finally {
+      setIsTyping(false)
     }
-
-    const responseText = responses[messageText] || `Entiendo tu pregunta ${firstName}. Dejame analizar tu perfil y tus resultados recientes para darte una respuesta personalizada. Que aspecto especifico te gustaria profundizar?`
-
-    const assistantMessage: Message = {
-      id: messages.length + 2,
-      role: "assistant",
-      content: responseText,
-    }
-
-    setIsTyping(false)
-    setMessages((prev) => [...prev, assistantMessage])
   }
 
   return (

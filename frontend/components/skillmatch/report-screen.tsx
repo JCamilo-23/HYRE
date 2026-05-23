@@ -1,6 +1,8 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { useState, useEffect } from "react"
+import { api } from "@/lib/api-client"
 import { 
   ArrowLeft, 
   Award, 
@@ -18,6 +20,7 @@ import { Screen } from "@/app/page"
 
 interface ReportScreenProps {
   onNavigate: (screen: Screen) => void
+  simulationId?: string | null
 }
 
 const categories = [
@@ -40,8 +43,27 @@ const tips = [
   "Considera mencionar mas sobre tu trabajo en equipo",
 ]
 
-export function ReportScreen({ onNavigate }: ReportScreenProps) {
-  const overallScore = 84
+export function ReportScreen({ onNavigate, simulationId }: ReportScreenProps) {
+  const [overallScore, setOverallScore] = useState(84)
+  const [liveCategories, setLiveCategories] = useState(categories)
+
+  useEffect(() => {
+    if (!simulationId) return
+    api.get<any>(`/api/v1/simulations/${simulationId}`)
+      .then((sim) => {
+        if (sim.score) setOverallScore(sim.score)
+        if (sim.analysis) {
+          const a = sim.analysis
+          setLiveCategories([
+            { id: "confidence", label: "Confianza", score: a.confidence ?? 80, level: a.confidence >= 85 ? "Sobresaliente" : "Alto", icon: TrendingUp, color: "#06B6D4" },
+            { id: "eye_contact", label: "Contacto visual", score: a.eye_contact ?? 75, level: a.eye_contact >= 85 ? "Sobresaliente" : "Alto", icon: Target, color: "#7C3AED" },
+            { id: "body_language", label: "Lenguaje corporal", score: a.body_language ?? 78, level: a.body_language >= 85 ? "Sobresaliente" : "Alto", icon: Users, color: "#10B981" },
+            { id: "communication", label: "Comunicacion", score: a.overall_score ?? 82, level: "Alto", icon: MessageSquare, color: "#F59E0B" },
+          ])
+        }
+      })
+      .catch(() => {})
+  }, [simulationId])
 
   return (
     <div className="min-h-screen pb-24 safe-area-top">
@@ -94,7 +116,7 @@ export function ReportScreen({ onNavigate }: ReportScreenProps) {
       <div className="px-6 mb-6">
         <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Desglose por categoria</h2>
         <div className="space-y-3">
-          {categories.map((category, index) => {
+          {liveCategories.map((category, index) => {
             const Icon = category.icon
             return (
               <motion.div

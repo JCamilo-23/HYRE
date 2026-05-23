@@ -7,14 +7,18 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # CORS — frontend local + produccion
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://*.vercel.app",
+    ]
 
     # Supabase
     SUPABASE_URL: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # OpenAI
-    OPENAI_API_KEY: str
+    # Gemini
+    GEMINI_API_KEY: str
 
     # Stripe
     STRIPE_SECRET_KEY: str

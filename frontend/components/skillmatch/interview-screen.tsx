@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   Video, 
@@ -24,6 +24,8 @@ import { Screen } from "@/app/page"
 
 interface InterviewScreenProps {
   onNavigate: (screen: Screen) => void
+  jobId?: string | null
+  onSimulationCreated?: (id: string) => void
 }
 
 type InterviewState = "prep" | "live" | "processing" | "complete"
@@ -52,7 +54,7 @@ const analysisMetrics = [
   { id: "confidence", label: "Confianza", value: "Alta", color: "#10B981" },
 ]
 
-export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
+export function InterviewScreen({ onNavigate, jobId, onSimulationCreated }: InterviewScreenProps) {
   const [state, setState] = useState<InterviewState>("prep")
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [isMuted, setIsMuted] = useState(false)
@@ -61,6 +63,12 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [timer, setTimer] = useState(0)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
+  const [questions, setQuestions] = useState(interviewQuestions)
+  const [simulationId, setSimulationId] = useState<string | null>(null)
+  const [videoScores, setVideoScores] = useState<any[]>([])
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const captureIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const processingSteps = [
     "Analizando lenguaje corporal...",
@@ -104,20 +112,83 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  const handleStartInterview = () => {
+  const startWebcam = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      streamRef.current = stream
+      if (videoRef.current) videoRef.current.srcObject = stream
+    } catch {}
+  }, [])
+
+  const captureAndAnalyze = useCallback(async () => {
+    if (!videoRef.current || !simulationId) return
+    const canvas = document.createElement("canvas")
+    canvas.width = 320
+    canvas.height = 240
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    ctx.drawImage(videoRef.current, 0, 0, 320, 240)
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      try {
+        const { getSession } = await import("@/modules/auth/client-actions")
+        const session = await getSession()
+        const formData = new FormData()
+        formData.append("file", blob, "frame.jpg")
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"}/api/v1/video/analyze`, {
+          method: "POST",
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+          body: formData,
+        })
+        if (res.ok) {
+          const score = await res.json()
+          setVideoScores((prev) => [...prev, score])
+        }
+      } catch {}
+    }, "image/jpeg", 0.7)
+  }, [simulationId])
+
+  const handleStartInterview = async () => {
+    await startWebcam()
+    if (jobId) {
+      try {
+        const { api } = await import("@/lib/api-client")
+        const sim = await api.post<{ id: string }>("/api/v1/simulations/", { job_id: jobId })
+        setSimulationId(sim.id)
+        onSimulationCreated?.(sim.id)
+        const qs = await api.get<{ questions: any[] }>(`/api/v1/simulations/${sim.id}/questions`)
+        if (qs.questions?.length) setQuestions(qs.questions.map((q: any) => q.question))
+      } catch {}
+    }
     setState("live")
+    captureIntervalRef.current = setInterval(captureAndAnalyze, 10000)
   }
 
   const handleNextQuestion = () => {
-    if (currentQuestion < interviewQuestions.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1)
     } else {
-      setState("processing")
+      handleEndInterview()
     }
   }
 
-  const handleEndInterview = () => {
+  const handleEndInterview = async () => {
+    if (captureIntervalRef.current) clearInterval(captureIntervalRef.current)
+    streamRef.current?.getTracks().forEach((t) => t.stop())
     setState("processing")
+    if (simulationId && videoScores.length > 0) {
+      const avg = (key: string) => Math.round(videoScores.reduce((s, v) => s + (v[key] ?? 70), 0) / videoScores.length)
+      try {
+        const { api } = await import("@/lib/api-client")
+        await api.post(`/api/v1/simulations/${simulationId}/result`, {
+          overall_score: avg("overall_score"),
+          confidence: avg("confidence"),
+          eye_contact: avg("eye_contact"),
+          body_language: avg("body_language"),
+          video_scores: videoScores,
+        })
+      } catch {}
+    }
   }
 
   if (state === "prep") {
@@ -304,7 +375,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         </div>
         <span className="text-[#F1F5F9] font-mono text-sm">{formatTime(timer)}</span>
         <span className="text-[#94A3B8] text-xs">
-          Pregunta {currentQuestion + 1} de {interviewQuestions.length}
+          Pregunta {currentQuestion + 1} de {questions.length}
         </span>
       </div>
 
@@ -341,7 +412,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
               exit={{ opacity: 0, y: -10 }}
               className="text-[#F1F5F9] text-center text-sm leading-relaxed"
             >
-              {interviewQuestions[currentQuestion]}
+              {questions[currentQuestion]}
             </motion.p>
           </AnimatePresence>
         </div>
@@ -362,15 +433,19 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
 
         {/* User camera preview */}
         <div className="absolute bottom-32 right-4 w-24 h-32 rounded-xl overflow-hidden glass">
-          <div className="w-full h-full bg-[#1A1A2E] flex items-center justify-center">
-            {isVideoOff ? (
+          {isVideoOff ? (
+            <div className="w-full h-full bg-[#1A1A2E] flex items-center justify-center">
               <VideoOff className="w-8 h-8 text-[#475569]" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#7C3AED]/20 to-[#06B6D4]/20 flex items-center justify-center">
-                <span className="text-[#F1F5F9] text-2xl font-bold">S</span>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          )}
         </div>
       </div>
 

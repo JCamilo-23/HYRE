@@ -43,6 +43,8 @@ export default function HyreApp() {
     email: "",
     userType: null,
   })
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [simulationId, setSimulationId] = useState<string | null>(null)
 
   // Splash screen timer
   useEffect(() => {
@@ -86,13 +88,13 @@ export default function HyreApp() {
       case "home":
         return <HomeScreen onNavigate={setCurrentScreen} userData={userData} />
       case "match":
-        return <MatchScreen onNavigate={setCurrentScreen} />
+        return <MatchScreen onNavigate={setCurrentScreen} onSelectJob={setSelectedJobId} />
       case "simulation":
-        return <SimulationScreen onNavigate={setCurrentScreen} />
+        return <SimulationScreen onNavigate={setCurrentScreen} jobId={selectedJobId} />
       case "interview":
-        return <InterviewScreen onNavigate={setCurrentScreen} />
+        return <InterviewScreen onNavigate={setCurrentScreen} jobId={selectedJobId} onSimulationCreated={setSimulationId} />
       case "report":
-        return <ReportScreen onNavigate={setCurrentScreen} />
+        return <ReportScreen onNavigate={setCurrentScreen} simulationId={simulationId} />
       case "profile":
         return <ProfileScreen onNavigate={setCurrentScreen} userData={userData} />
       case "mentor":
