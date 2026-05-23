@@ -1,0 +1,13 @@
+{
+  "name": "barranqui-ia-2026",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && python -m uvicorn app.main:app --reload"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
