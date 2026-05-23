@@ -1,0 +1,6 @@
+node_modules/
+.agents/
+.mcp.json
+skills-lock.json
+.playwright-mcp/
+hyre-splash.png
