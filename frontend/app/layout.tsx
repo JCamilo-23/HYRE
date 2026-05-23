@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { NovaRoot } from '@/components/nova/nova-root'
 import './globals.css'
 
 const inter = Inter({
@@ -45,6 +46,7 @@ export default function RootLayout({
     <html lang="es" className="dark bg-background">
       <body className={`${inter.variable} font-sans antialiased bg-background`}>
         {children}
+        <NovaRoot />
       </body>
     </html>
   )

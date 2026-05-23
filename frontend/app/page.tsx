@@ -14,6 +14,7 @@ import { ReportScreen } from "@/components/skillmatch/report-screen"
 import { ProfileScreen } from "@/components/skillmatch/profile-screen"
 import { MentorScreen } from "@/components/skillmatch/mentor-screen"
 import { BottomNav } from "@/components/skillmatch/bottom-nav"
+import { NovaAppSync } from "@/components/nova/nova-root"
 
 export type Screen = 
   | "splash" 
@@ -96,7 +97,7 @@ export default function HyreApp() {
       case "profile":
         return <ProfileScreen onNavigate={setCurrentScreen} userData={userData} />
       case "mentor":
-        return <MentorScreen onNavigate={setCurrentScreen} userData={userData} />
+        return <MentorScreen onNavigate={setCurrentScreen} />
       default:
         return <HomeScreen onNavigate={setCurrentScreen} userData={userData} />
     }
@@ -105,7 +106,12 @@ export default function HyreApp() {
   const showBottomNav = isOnboarded && !["splash", "onboarding", "userType", "register", "interview", "simulation"].includes(currentScreen)
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <NovaAppSync
+        isOnboarded={isOnboarded}
+        showBottomNav={showBottomNav}
+        userName={userData.name}
+      />
       {/* Background gradient effects */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#7C3AED]/15 rounded-full blur-[120px] opacity-50" />

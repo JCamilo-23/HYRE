@@ -13,6 +13,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import { Screen, UserData } from "@/app/page"
+import { useNovaStore } from "@/store/nova-store"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
@@ -50,7 +51,7 @@ const quickCards = [
     subtitle: "Tu mentor IA",
     icon: MessageSquare,
     color: "#F59E0B",
-    screen: "mentor" as Screen,
+    action: "nova" as const,
   },
 ]
 
@@ -91,6 +92,7 @@ const recentActivity = [
 ]
 
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
+  const openNova = useNovaStore((s) => s.open)
   const currentHour = new Date().getHours()
   const greeting = currentHour < 12 ? "Buenos dias" : currentHour < 18 ? "Buenas tardes" : "Buenas noches"
   
@@ -152,7 +154,11 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                onClick={() => onNavigate(card.screen)}
+                onClick={() =>
+                  "action" in card && card.action === "nova"
+                    ? openNova()
+                    : onNavigate(card.screen)
+                }
                 className="flex-shrink-0 w-40 p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
               >
                 <div 
@@ -262,8 +268,9 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <p className="text-[#94A3B8] text-sm leading-relaxed">
                 Mejora tus habilidades en React para acceder a 12 empresas mas que buscan ese perfil.
               </p>
-              <button 
-                onClick={() => onNavigate("mentor")}
+              <button
+                type="button"
+                onClick={() => openNova()}
                 className="text-[#7C3AED] text-sm font-medium mt-2 flex items-center gap-1"
               >
                 Hablar con Nova

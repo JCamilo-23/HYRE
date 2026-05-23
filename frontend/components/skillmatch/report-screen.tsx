@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Screen } from "@/app/page"
+import { useNovaStore } from "@/store/nova-store"
 
 interface ReportScreenProps {
   onNavigate: (screen: Screen) => void
@@ -41,6 +42,7 @@ const tips = [
 ]
 
 export function ReportScreen({ onNavigate }: ReportScreenProps) {
+  const openNova = useNovaStore((s) => s.open)
   const overallScore = 84
 
   return (
@@ -240,7 +242,8 @@ export function ReportScreen({ onNavigate }: ReportScreenProps) {
 
         {/* Talk to mentor */}
         <button
-          onClick={() => onNavigate("mentor")}
+          type="button"
+          onClick={() => openNova()}
           className="w-full flex items-center justify-between p-4 glass rounded-xl hover:bg-white/10 transition-colors"
         >
           <span className="text-[#94A3B8] text-sm">Hablar con Nova sobre tu reporte</span>
