@@ -1,6 +1,7 @@
 import type {
   ChallengeEvaluation,
   CreateWorkSimulatorSessionInput,
+  GenerateChallengeOptions,
   WorkChallenge,
   WorkSimulatorSession,
 } from "./types"
@@ -32,20 +33,28 @@ export async function createWorkSimulatorSession(input: CreateWorkSimulatorSessi
 }
 
 export async function sendWorkSimulatorMessage(sessionId: string, message: string) {
-  return request<{ session_id: string; reply: string; messages: WorkSimulatorSession["messages"] }>(
-    `/api/work-simulator/sessions/${sessionId}/messages`,
-    { method: "POST", body: JSON.stringify({ message }) },
-  )
+  return request<{
+    session_id: string
+    reply: string
+    messages: WorkSimulatorSession["messages"]
+    session: WorkSimulatorSession
+  }>(`/api/work-simulator/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  })
 }
 
-export async function generateWorkChallenge(sessionId: string) {
+export async function generateWorkChallenge(
+  sessionId: string,
+  options: GenerateChallengeOptions = {},
+) {
   return request<{
     challenge: WorkChallenge
     message: string
     session: WorkSimulatorSession
   }>(`/api/work-simulator/sessions/${sessionId}/challenges`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(options),
   })
 }
 

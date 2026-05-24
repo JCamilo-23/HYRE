@@ -1,3 +1,7 @@
+import type { DeliverableType, WorkBlock } from "./constants"
+
+export type { WorkBlock, DeliverableType }
+
 export interface ScenarioContext {
   role_title?: string
   company_name?: string
@@ -8,6 +12,9 @@ export interface ScenarioContext {
   challenge_titles?: string[]
   current_challenge?: WorkChallenge
   job_id?: string
+  simulation_started_at?: string
+  notifications_enabled?: boolean
+  compressed_mode?: boolean
 }
 
 export interface WorkSimulatorSession {
@@ -31,13 +38,22 @@ export interface WorkSimulatorMessage {
 export interface WorkChallenge {
   id: number
   title: string
-  type: string
+  type: "deliverable"
+  deliverable_type: DeliverableType
   urgency: string
+  assigned_by: string
+  work_block: WorkBlock
+  sim_time_label: string
   context: string
-  options?: { id: string; text: string }[]
+  deliverable_description: string
+  acceptance_criteria: string[]
   time_limit_minutes: number
+  deadline_at: string
   xp: number
-  evaluation_criteria?: string[]
+  evaluation_criteria: string[]
+  min_quality_bar: string
+  /** @deprecated No usar — las tareas no son quiz */
+  options?: never
 }
 
 export interface ChallengeEvaluation {
@@ -47,10 +63,18 @@ export interface ChallengeEvaluation {
   improvements: string[]
   feedback: string
   passed: boolean
+  quality_level: "insuficiente" | "aceptable" | "bueno" | "excelente"
 }
 
 export interface CreateWorkSimulatorSessionInput {
   job_id?: string
   role_title?: string
   company_name?: string
+}
+
+export interface GenerateChallengeOptions {
+  slot_label?: string
+  work_block?: WorkBlock
+  sim_time_label?: string
+  source?: "manual" | "scheduled" | "start"
 }

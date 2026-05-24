@@ -1,13 +1,14 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   createWorkSimulatorSession,
   evaluateWorkChallengeResponse,
   generateWorkChallenge,
   sendWorkSimulatorMessage,
 } from "./api"
-import type { WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession } from "./types"
+import { useWorkDayNotifications } from "./use-work-day-notifications"
+import type { GenerateChallengeOptions, WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession } from "./types"
 
 export function useWorkSimulator() {
   const [session, setSession] = useState<WorkSimulatorSession | null>(null)
@@ -15,6 +16,14 @@ export function useWorkSimulator() {
   const [currentChallenge, setCurrentChallenge] = useState<WorkChallenge | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [compressedMode, setCompressedMode] = useState(false)
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(null)
+
+  const applySession = useCallback((s: WorkSimulatorSession) => {
+    setSession(s)
+    setMessages(s.messages ?? [])
+    setCurrentChallenge(s.scenario_context?.current_challenge ?? null)
+  }, [])
 
   const startSession = useCallback(
     async (input: { job_id?: string; role_title?: string; company_name?: string }) => {
@@ -22,9 +31,7 @@ export function useWorkSimulator() {
       setError(null)
       try {
         const created = await createWorkSimulatorSession(input)
-        setSession(created)
-        setMessages(created.messages ?? [])
-        setCurrentChallenge(created.scenario_context?.current_challenge ?? null)
+        applySession(created)
         return created
       } catch (e) {
         const msg = e instanceof Error ? e.message : "No se pudo iniciar la simulación"
@@ -34,8 +41,48 @@ export function useWorkSimulator() {
         setLoading(false)
       }
     },
-    [],
+    [applySession],
   )
+
+  const requestChallenge = useCallback(
+    async (options: GenerateChallengeOptions = { source: "manual" }) => {
+      if (!session) {
+        setError("Espera a que cargue la sesión...")
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await generateWorkChallenge(session.id, options)
+        applySession(res.session)
+        return res.challenge
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "No se pudo generar la tarea"
+        setError(msg)
+        throw e
+      } finally {
+        setLoading(false)
+      }
+    },
+    [session, applySession],
+  )
+
+  const onScheduledTask = useCallback(
+    async (options: GenerateChallengeOptions) => {
+      await requestChallenge(options)
+    },
+    [requestChallenge],
+  )
+
+  const { notificationsEnabled, nextSlotLabel, requestNotificationPermission } =
+    useWorkDayNotifications({
+      sessionId: session?.id ?? null,
+      simulationStartedAt: session?.scenario_context?.simulation_started_at ?? null,
+      compressedMode,
+      hasActiveChallenge: !!currentChallenge,
+      loading,
+      onScheduledTask,
+    })
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -46,8 +93,7 @@ export function useWorkSimulator() {
       setMessages((m) => [...m, { role: "user", content: text }])
       try {
         const res = await sendWorkSimulatorMessage(session.id, text)
-        setMessages(res.messages)
-        setSession((s) => (s ? { ...s, messages: res.messages } : s))
+        applySession(res.session)
         return res.reply
       } catch (e) {
         setMessages(previousMessages)
@@ -58,30 +104,8 @@ export function useWorkSimulator() {
         setLoading(false)
       }
     },
-    [session, messages],
+    [session, messages, applySession],
   )
-
-  const requestChallenge = useCallback(async () => {
-    if (!session) {
-      setError("Espera a que cargue la sesión...")
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await generateWorkChallenge(session.id)
-      setSession(res.session)
-      setMessages(res.session.messages)
-      setCurrentChallenge(res.challenge)
-      return res.challenge
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "No se pudo generar el reto"
-      setError(msg)
-      throw e
-    } finally {
-      setLoading(false)
-    }
-  }, [session])
 
   const submitChallengeResponse = useCallback(
     async (response: string) => {
@@ -90,20 +114,36 @@ export function useWorkSimulator() {
       setError(null)
       try {
         const res = await evaluateWorkChallengeResponse(session.id, response)
-        setSession(res.session)
-        setMessages(res.session.messages)
-        setCurrentChallenge(null)
+        applySession(res.session)
+        setTimeLeftSeconds(null)
         return res.evaluation
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "No se pudo evaluar la respuesta"
+        const msg = e instanceof Error ? e.message : "No se pudo evaluar la entrega"
         setError(msg)
         throw e
       } finally {
         setLoading(false)
       }
     },
-    [session],
+    [session, applySession],
   )
+
+  useEffect(() => {
+    if (!currentChallenge?.deadline_at) {
+      setTimeLeftSeconds(null)
+      return
+    }
+
+    const update = () => {
+      const diff = Math.floor(
+        (new Date(currentChallenge.deadline_at).getTime() - Date.now()) / 1000,
+      )
+      setTimeLeftSeconds(diff)
+    }
+    update()
+    const id = window.setInterval(update, 1000)
+    return () => window.clearInterval(id)
+  }, [currentChallenge])
 
   return {
     session,
@@ -111,6 +151,12 @@ export function useWorkSimulator() {
     currentChallenge,
     loading,
     error,
+    compressedMode,
+    setCompressedMode,
+    timeLeftSeconds,
+    notificationsEnabled,
+    nextSlotLabel,
+    requestNotificationPermission,
     startSession,
     sendMessage,
     requestChallenge,

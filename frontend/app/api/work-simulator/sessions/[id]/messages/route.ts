@@ -19,10 +19,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const { reply, messages } = await processMessage(session, message)
-    const updated = { ...session, messages, updated_at: new Date().toISOString() }
+    const { reply, messages, session: updated } = await processMessage(session, message)
     saveSession(updated)
-    return NextResponse.json({ session_id: id, reply, messages })
+    return NextResponse.json({ session_id: id, reply, messages, session: updated })
   } catch (error) {
     console.error("work-simulator message:", error)
     return NextResponse.json({ detail: "Error al procesar mensaje" }, { status: 502 })
