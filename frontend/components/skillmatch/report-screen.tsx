@@ -10,12 +10,10 @@ import {
   Brain,
   Target,
   Zap,
-  ChevronRight,
   Share2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Screen } from "@/lib/hyre-types"
-import { useNovaStore } from "@/store/nova-store"
 
 interface ReportScreenProps {
   onNavigate: (screen: Screen) => void
@@ -42,7 +40,6 @@ const tips = [
 ]
 
 export function ReportScreen({ onNavigate }: ReportScreenProps) {
-  const openNova = useNovaStore((s) => s.open)
   const overallScore = 84
 
   return (
@@ -239,16 +236,6 @@ export function ReportScreen({ onNavigate }: ReportScreenProps) {
           <Share2 className="w-4 h-4" />
           Compartir badge en LinkedIn
         </Button>
-
-        {/* Talk to mentor */}
-        <button
-          type="button"
-          onClick={() => openNova()}
-          className="w-full flex items-center justify-between p-4 glass rounded-xl hover:bg-white/10 transition-colors"
-        >
-          <span className="text-[#94A3B8] text-sm">Hablar con Nova sobre tu reporte</span>
-          <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
-        </button>
       </div>
     </div>
   )

@@ -8,15 +8,19 @@ interface NovaAppSyncProps {
   isOnboarded: boolean
   showBottomNav: boolean
   userName: string
+  userType?: "candidate" | "company" | null
 }
 
 /** Sincroniza estado de la app con el store global de Nova */
-export function NovaAppSync({ isOnboarded, showBottomNav, userName }: NovaAppSyncProps) {
-  const { setVisible, setHasBottomNav, setUserName } = useNovaStore()
+export function NovaAppSync({ isOnboarded, showBottomNav, userName, userType }: NovaAppSyncProps) {
+  const { setVisible, setHasBottomNav, setUserName, close } = useNovaStore()
 
   useEffect(() => {
-    setVisible(isOnboarded)
-  }, [isOnboarded, setVisible])
+    const isEmployer = userType === "company"
+    const shouldShow = isOnboarded && isEmployer
+    setVisible(shouldShow)
+    if (!shouldShow) close()
+  }, [isOnboarded, userType, setVisible, close])
 
   useEffect(() => {
     setHasBottomNav(showBottomNav)

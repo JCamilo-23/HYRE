@@ -116,6 +116,7 @@ export function HyreApp() {
         isOnboarded={isOnboarded}
         showBottomNav={showBottomNav}
         userName={userData.name}
+        userType={userData.userType}
       />
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#7C3AED]/15 rounded-full blur-[120px] opacity-50" />
