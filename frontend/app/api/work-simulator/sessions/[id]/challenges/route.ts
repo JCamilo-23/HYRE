@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processChallenge } from "@/modules/work-simulator/service"
-import { getSession, saveSession } from "@/lib/work-simulator-session-store"
-import { createClient } from "@/lib/supabase/server"
+import { memGet, memSave } from "@/lib/work-simulator-memory-store"
 import type { GenerateChallengeOptions } from "@/modules/work-simulator/types"
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ detail: "No autorizado" }, { status: 401 })
-  }
-
   const { id } = await params
-  const session = await getSession(id, supabase)
+  const session = memGet(id)
 
   if (!session) {
     return NextResponse.json({ detail: "Sesión no encontrada" }, { status: 404 })
@@ -30,7 +22,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const result = await processChallenge(session, options)
-    await saveSession(result.session, supabase)
+    memSave(result.session)
     return NextResponse.json({
       challenge: result.challenge,
       message: result.message,
