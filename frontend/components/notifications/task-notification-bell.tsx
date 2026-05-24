@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   Bell,
   BellOff,
@@ -8,12 +8,15 @@ import {
   ChevronRight,
   Clock,
   Inbox,
+  Loader2,
+  ShieldAlert,
   Sparkles,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
 import {
   useTaskNotificationsStore,
   type TaskNotificationItem,
@@ -21,8 +24,6 @@ import {
 
 interface TaskNotificationBellProps {
   variant?: "default" | "compact" | "header"
-  notificationsEnabled?: boolean
-  onRequestPermission?: () => Promise<boolean> | void
   onNavigateToSimulator?: () => void
   timeLeftSeconds?: number | null
   className?: string
@@ -124,19 +125,112 @@ function NotificationRow({
   )
 }
 
+function PushPermissionBanner({
+  permissionStatus,
+  permissionLoading,
+  onRequest,
+}: {
+  permissionStatus: string
+  permissionLoading: boolean
+  onRequest: () => void
+}) {
+  if (permissionStatus === "granted") {
+    return (
+      <div className="mx-3 mt-3 flex items-center gap-2 rounded-xl border border-[#22C55E]/30 bg-[#22C55E]/10 px-3 py-2">
+        <Bell className="h-4 w-4 shrink-0 text-[#22C55E]" />
+        <p className="text-xs text-[#BBF7D0]">
+          Notificaciones push activas en este dispositivo
+        </p>
+      </div>
+    )
+  }
+
+  if (permissionStatus === "denied") {
+    return (
+      <div className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <div>
+            <p className="text-xs font-medium text-amber-200">Permiso bloqueado</p>
+            <p className="mt-1 text-[11px] text-[#94A3B8]">
+              Activa las notificaciones en la configuración del navegador para recibir tareas en
+              este dispositivo.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (permissionStatus === "unsupported") {
+    return (
+      <div className="mx-3 mt-3 rounded-xl border border-[#334155] bg-[#1E293B] px-3 py-3">
+        <p className="text-xs text-[#94A3B8]">
+          Tu navegador no soporta notificaciones push en este dispositivo.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-3 mt-3 rounded-xl border border-[#7C3AED]/40 bg-[#7C3AED]/10 px-3 py-3">
+      <div className="flex items-start gap-2">
+        <BellOff className="mt-0.5 h-4 w-4 shrink-0 text-[#C4B5FD]" />
+        <div className="flex-1">
+          <p className="text-xs font-medium text-[#F1F5F9]">Activa notificaciones push</p>
+          <p className="mt-1 text-[11px] text-[#94A3B8]">
+            Recibe nuevas tareas del simulador directamente en este dispositivo, aunque no tengas
+            la app abierta.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            disabled={permissionLoading}
+            onClick={onRequest}
+            className="mt-2 h-7 bg-[#7C3AED] text-[11px] hover:bg-[#6D28D9]"
+          >
+            {permissionLoading ? (
+              <>
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                Solicitando permiso...
+              </>
+            ) : (
+              <>
+                <Bell className="mr-1.5 h-3 w-3" />
+                Permitir notificaciones
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TaskNotificationBell({
   variant = "default",
-  notificationsEnabled = false,
-  onRequestPermission,
   onNavigateToSimulator,
   timeLeftSeconds,
   className,
 }: TaskNotificationBellProps) {
   const [open, setOpen] = useState(false)
+  const { permissionStatus, permissionLoading, pushEnabled, requestPermission } =
+    usePushNotifications()
+
   const items = useTaskNotificationsStore((s) => s.items)
   const markAsRead = useTaskNotificationsStore((s) => s.markAsRead)
   const markAllAsRead = useTaskNotificationsStore((s) => s.markAllAsRead)
   const pendingCount = useTaskNotificationsStore((s) => s.pendingCount())
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen)
+      if (nextOpen && permissionStatus === "default" && !permissionLoading) {
+        void requestPermission()
+      }
+    },
+    [permissionStatus, permissionLoading, requestPermission],
+  )
 
   const { active, upcoming, recent } = useMemo(() => {
     const activeItem = items.find((i) => i.status === "active") ?? null
@@ -163,7 +257,7 @@ export function TaskNotificationBell({
         : "h-10 w-10 glass rounded-full text-[#F1F5F9] hover:bg-white/10"
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -179,6 +273,9 @@ export function TaskNotificationBell({
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#EF4444] px-1 text-[10px] font-semibold text-white">
               {badgeCount > 9 ? "9+" : badgeCount}
             </span>
+          )}
+          {!pushEnabled && permissionStatus === "default" && badgeCount === 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#7C3AED]" />
           )}
         </button>
       </PopoverTrigger>
@@ -208,6 +305,12 @@ export function TaskNotificationBell({
             )}
           </div>
         </div>
+
+        <PushPermissionBanner
+          permissionStatus={permissionStatus}
+          permissionLoading={permissionLoading}
+          onRequest={() => void requestPermission()}
+        />
 
         <div className="max-h-[min(60vh,420px)] space-y-4 overflow-y-auto p-3">
           {active && (
@@ -247,7 +350,7 @@ export function TaskNotificationBell({
               </div>
               <p className="text-sm font-medium text-[#F1F5F9]">Sin tareas pendientes</p>
               <p className="mt-1 max-w-[240px] text-xs text-[#64748B]">
-                Inicia la jornada en el simulador o activa las notificaciones automáticas.
+                Inicia la jornada en el simulador para recibir asignaciones automáticas.
               </p>
             </div>
           )}
@@ -266,29 +369,8 @@ export function TaskNotificationBell({
           )}
         </div>
 
-        <div className="space-y-2 border-t border-[#334155] p-3">
-          {onRequestPermission && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 w-full border-[#334155] text-xs text-[#E2E8F0] hover:bg-[#1E293B]"
-              onClick={() => void onRequestPermission()}
-            >
-              {notificationsEnabled ? (
-                <>
-                  <Bell className="mr-1.5 h-3.5 w-3.5 text-[#22C55E]" />
-                  Alertas del navegador activas
-                </>
-              ) : (
-                <>
-                  <BellOff className="mr-1.5 h-3.5 w-3.5" />
-                  Activar alertas del navegador
-                </>
-              )}
-            </Button>
-          )}
-          {onNavigateToSimulator && (
+        {onNavigateToSimulator && (
+          <div className="border-t border-[#334155] p-3">
             <Button
               type="button"
               size="sm"
@@ -301,8 +383,8 @@ export function TaskNotificationBell({
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
               Abrir simulador laboral
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

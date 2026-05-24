@@ -7,6 +7,7 @@ import {
   generateWorkChallenge,
   sendWorkSimulatorMessage,
 } from "./api"
+import { getPushPermissionStatus } from "@/lib/push-notifications"
 import { WORK_DAY_NOTIFICATION_SLOTS } from "./constants"
 import { useWorkDayNotifications } from "./use-work-day-notifications"
 import type { GenerateChallengeOptions, WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession } from "./types"
@@ -25,7 +26,7 @@ export function useWorkSimulator() {
   const syncActiveChallenge = useTaskNotificationsStore((s) => s.syncActiveChallenge)
   const completeActiveTask = useTaskNotificationsStore((s) => s.completeActiveTask)
   const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
-  const setPushEnabled = useTaskNotificationsStore((s) => s.setPushEnabled)
+  const setPermissionStatus = useTaskNotificationsStore((s) => s.setPermissionStatus)
 
   const applySession = useCallback((s: WorkSimulatorSession) => {
     setSession(s)
@@ -93,8 +94,8 @@ export function useWorkSimulator() {
     })
 
   useEffect(() => {
-    setPushEnabled(notificationsEnabled)
-  }, [notificationsEnabled, setPushEnabled])
+    setPermissionStatus(getPushPermissionStatus())
+  }, [notificationsEnabled, setPermissionStatus])
 
   useEffect(() => {
     syncActiveChallenge(currentChallenge)

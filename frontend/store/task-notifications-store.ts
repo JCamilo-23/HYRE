@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { WorkChallenge } from "@/modules/work-simulator/types"
+import type { PushPermissionStatus } from "@/lib/push-notifications"
 
 export type TaskNotificationStatus = "active" | "upcoming" | "completed"
 
@@ -20,7 +21,11 @@ export interface TaskNotificationItem {
 interface TaskNotificationsState {
   items: TaskNotificationItem[]
   pushEnabled: boolean
+  permissionStatus: PushPermissionStatus
+  permissionLoading: boolean
   setPushEnabled: (enabled: boolean) => void
+  setPermissionStatus: (status: PushPermissionStatus) => void
+  setPermissionLoading: (loading: boolean) => void
   addScheduledAlert: (payload: {
     title: string
     description?: string
@@ -57,8 +62,13 @@ function challengeToItem(challenge: WorkChallenge): TaskNotificationItem {
 export const useTaskNotificationsStore = create<TaskNotificationsState>((set, get) => ({
   items: [],
   pushEnabled: false,
+  permissionStatus: "default",
+  permissionLoading: false,
 
   setPushEnabled: (pushEnabled) => set({ pushEnabled }),
+  setPermissionStatus: (permissionStatus) =>
+    set({ permissionStatus, pushEnabled: permissionStatus === "granted" }),
+  setPermissionLoading: (permissionLoading) => set({ permissionLoading }),
 
   addScheduledAlert: (payload) =>
     set((state) => ({

@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
+  getPushPermissionStatus,
+  requestPushPermission,
+  showPushNotification,
+} from "@/lib/push-notifications"
+import {
   COMPRESSED_SLOT_INTERVAL_MINUTES,
   WORK_DAY_NOTIFICATION_SLOTS,
   storageKeyCompressed,
@@ -18,20 +23,6 @@ interface UseWorkDayNotificationsOptions {
   onScheduledTask: (options: GenerateChallengeOptions) => Promise<void>
 }
 
-function showBrowserNotification(title: string, body: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return
-  if (Notification.permission !== "granted") return
-  try {
-    new Notification(title, {
-      body,
-      icon: "/icon-dark-32x32.png",
-      tag: "work-simulator-task",
-    })
-  } catch {
-    /* ignore */
-  }
-}
-
 export function useWorkDayNotifications({
   sessionId,
   simulationStartedAt,
@@ -45,17 +36,14 @@ export function useWorkDayNotifications({
   const firingRef = useRef(false)
 
   const requestNotificationPermission = useCallback(async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) return false
-    const perm = await Notification.requestPermission()
-    const granted = perm === "granted"
-    setNotificationsEnabled(granted)
+    const granted = await requestPushPermission()
+    const status = getPushPermissionStatus()
+    setNotificationsEnabled(status === "granted")
     return granted
   }, [])
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationsEnabled(Notification.permission === "granted")
-    }
+    setNotificationsEnabled(getPushPermissionStatus() === "granted")
   }, [])
 
   useEffect(() => {
@@ -77,10 +65,11 @@ export function useWorkDayNotifications({
         const template = WORK_DAY_NOTIFICATION_SLOTS[slotIndex % WORK_DAY_NOTIFICATION_SLOTS.length]
         firingRef.current = true
         sessionStorage.setItem(key, "1")
-        showBrowserNotification(
-          `${template.simTimeLabel} — Nueva tarea`,
-          template.label,
-        )
+        showPushNotification({
+          title: `${template.simTimeLabel} — Nueva tarea`,
+          body: template.label,
+          tag: "work-simulator-task",
+        })
         await onScheduledTask({
           source: "scheduled",
           slot_label: template.label,
@@ -111,10 +100,11 @@ export function useWorkDayNotifications({
 
         firingRef.current = true
         sessionStorage.setItem(key, "1")
-        showBrowserNotification(
-          `${slot.simTimeLabel} — Nueva asignación`,
-          slot.label,
-        )
+        showPushNotification({
+          title: `${slot.simTimeLabel} — Nueva asignación`,
+          body: slot.label,
+          tag: "work-simulator-task",
+        })
         await onScheduledTask({
           source: "scheduled",
           slot_label: slot.label,

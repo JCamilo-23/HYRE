@@ -96,8 +96,6 @@ const recentActivity = [
 
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
   const openNova = useNovaStore((s) => s.open)
-  const setPushEnabled = useTaskNotificationsStore((s) => s.setPushEnabled)
-  const pushEnabled = useTaskNotificationsStore((s) => s.pushEnabled)
   const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
   const currentHour = new Date().getHours()
 
@@ -136,14 +134,6 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
             </div>
             <TaskNotificationBell
               variant="compact"
-              notificationsEnabled={pushEnabled}
-              onRequestPermission={async () => {
-                if (typeof window === "undefined" || !("Notification" in window)) return false
-                const perm = await Notification.requestPermission()
-                const granted = perm === "granted"
-                setPushEnabled(granted)
-                return granted
-              }}
               onNavigateToSimulator={() => onNavigate("simulation")}
             />
           </div>

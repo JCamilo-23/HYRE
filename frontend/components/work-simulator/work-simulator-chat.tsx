@@ -37,9 +37,7 @@ export function WorkSimulatorChat({
     compressedMode,
     setCompressedMode,
     timeLeftSeconds,
-    notificationsEnabled,
     nextSlotLabel,
-    requestNotificationPermission,
     startSession,
     sendMessage,
     requestChallenge,
@@ -109,8 +107,6 @@ export function WorkSimulatorChat({
             )}
             <TaskNotificationBell
               variant="header"
-              notificationsEnabled={notificationsEnabled}
-              onRequestPermission={requestNotificationPermission}
               timeLeftSeconds={timeLeftSeconds}
             />
           </div>
