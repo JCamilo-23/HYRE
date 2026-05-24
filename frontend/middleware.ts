@@ -11,20 +11,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const { supabase, response } = createMiddlewareClient(request);
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  try {
+    const { supabase, response } = createMiddlewareClient(request);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  const isPublic = PUBLIC_ROUTES.some((route) =>
-    request.nextUrl.pathname.startsWith(route),
-  );
+    const isPublic = PUBLIC_ROUTES.some((route) =>
+      request.nextUrl.pathname.startsWith(route),
+    );
 
-  if (!session && !isPublic) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    if (!session && !isPublic) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    return response;
+  } catch (error) {
+    console.error("[middleware] Supabase auth check failed:", error);
+    return NextResponse.next();
   }
-
-  return response;
 }
 
 export const config = {

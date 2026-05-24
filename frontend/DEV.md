@@ -32,3 +32,23 @@ Always use `cd frontend` or `npm run dev` from root.
 ## Gemini
 
 Copy `.env.local.example` → `.env.local` and set `GEMINI_API_KEY`.
+
+## Internal Server Error en `/interview`
+
+Si ves **500 Internal Server Error**:
+
+1. **Limpia la caché de Next** (causa habitual: `Cannot find module './vendor-chunks/next.js'`):
+   ```bash
+   cd frontend
+   npm run dev:clean
+   ```
+2. Si el puerto 3000 sigue ocupado, cierra el proceso anterior o usa otro puerto:
+   ```bash
+   npm run dev:stable -- -p 3000
+   ```
+3. No ejecutes `next dev` desde la raíz del repo — solo desde `frontend/`.
+4. Si usas Supabase en `.env.local`, comprueba que `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` sean válidos (el middleware ignora errores, pero conviene corregirlos).
+
+Tras limpiar `.next`, verifica:
+- http://localhost:3000/interview → 200
+- http://localhost:3000/interview/&lt;session-id&gt; → 200
