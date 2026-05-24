@@ -20,6 +20,7 @@ from app.api.v1.schemas.interview_engine import (
 )
 from app.core.config import settings
 from app.core.exceptions import RateLimitExceeded
+from app.domain.agents.registry import list_agents
 from app.domain.services.interview_orchestrator import get_interview_orchestrator
 from app.infrastructure.gemini.interview_analyzer import GeminiInterviewAnalyzer
 from app.infrastructure.redis.client import get_redis
@@ -40,6 +41,12 @@ def _check_rate_limit(session_id: str) -> None:
     if count > RATE_LIMIT_MAX:
         raise RateLimitExceeded()
 
+
+
+
+@router.get("/agents")
+async def list_interview_agents() -> dict[str, Any]:
+    return {"agents": list_agents()}
 
 
 @router.get("/health")
@@ -67,6 +74,8 @@ async def create_interview_session(body: CreateInterviewRequest) -> CreateInterv
         recruiter_id=body.recruiter_id,
         job_context=body.job_context,
         required_skills=body.required_skills,
+        agent_type=body.agent_type,
+        company_profile=body.company_profile,
     )
     ws_path = f"/api/v1/interviews/ws/{session_id}"
 
@@ -83,12 +92,16 @@ async def create_interview_session(body: CreateInterviewRequest) -> CreateInterv
             logger.error("Opening interviewer turn failed: %s", exc)
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    session = orchestrator.get_session(session_id) or {}
     return CreateInterviewResponse(
         session_id=session_id,
         ws_url=ws_path,
         status="live",
         opening_question=opening_question,
         gemini_ready=gemini_ready,
+        agent_type=session.get("agent_type", "tech"),
+        agent_display_name=session.get("agent_display_name", ""),
+        company_style=(session.get("company_profile") or {}).get("style", "balanced"),
     )
 
 

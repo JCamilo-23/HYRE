@@ -5,6 +5,8 @@ import { Bot, Loader2 } from "lucide-react"
 import type { ConversationEntry } from "../types"
 
 interface AIInterviewerPanelProps {
+  agentName?: string | null
+  agentRole?: string | null
   question: string | null
   connected: boolean
   thinking?: boolean
@@ -20,6 +22,8 @@ export function AIInterviewerPanel({
   phaseLabel,
   progressPct = 0,
   conversation = [],
+  agentName,
+  agentRole,
 }: AIInterviewerPanelProps) {
   const recent = conversation.slice(-6)
 
@@ -27,7 +31,7 @@ export function AIInterviewerPanel({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="text-[#C4B5FD]">
-          {phaseLabel ? `Fase: ${phaseLabel}` : "Entrevistador IA · Gemini"}
+          {agentName ? `${agentName}${agentRole ? ` · ${agentRole}` : ""}` : phaseLabel ? `Fase: ${phaseLabel}` : "Entrevistador IA · HYRE"}
         </span>
         <span className="text-[#64748B]">{Math.round(progressPct)}% completado</span>
       </div>

@@ -3,7 +3,12 @@
 import { motion, AnimatePresence } from "framer-motion"
 import type { InterviewScores, InterviewWsEvent } from "../types"
 
+import type { CultureFitInsights } from "../types"
+
 interface RecruiterInsightsProps {
+  cultureInsights?: CultureFitInsights | null
+  personalityProfile?: string | null
+  agentDisplayName?: string | null
   scores: InterviewScores | null
   events: InterviewWsEvent[]
   sessionId: string
@@ -16,15 +21,39 @@ const REC_LABELS: Record<string, string> = {
   no_hire: "No recomendado",
 }
 
-export function RecruiterInsights({ scores, events, sessionId }: RecruiterInsightsProps) {
+export function RecruiterInsights({ scores, events, sessionId, cultureInsights, personalityProfile, agentDisplayName }: RecruiterInsightsProps) {
   const recent = events.filter((e) => e.type?.startsWith("analysis")).slice(-5)
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="text-xs text-[#94A3B8]">Sesión</p>
+        {agentDisplayName && (
+        <p className="mb-2 text-xs text-[#C4B5FD]">Reclutador IA: {agentDisplayName}</p>
+      )}
+      <p className="text-xs text-[#94A3B8]">Sesión</p>
         <p className="mt-1 truncate font-mono text-xs text-[#C4B5FD]">{sessionId}</p>
       </div>
+
+      
+      {cultureInsights && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-2xl border border-[#06B6D4]/25 bg-[#06B6D4]/10 p-4"
+        >
+          <p className="text-xs font-medium uppercase text-[#06B6D4]">Culture Fit Intelligence</p>
+          {personalityProfile && (
+            <p className="mt-1 text-sm font-medium text-white">{personalityProfile}</p>
+          )}
+          {cultureInsights.psychological_summary && (
+            <p className="mt-2 text-xs text-[#94A3B8]">{cultureInsights.psychological_summary}</p>
+          )}
+          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+            <span>Startup fit: {Math.round(cultureInsights.startup_fit_score ?? 0)}%</span>
+            <span>Alineación: {Math.round(cultureInsights.cultural_alignment_score ?? 0)}%</span>
+          </div>
+        </motion.div>
+      )}
 
       {scores && (
         <motion.div

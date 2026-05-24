@@ -15,6 +15,19 @@ export interface ConversationEntry {
   phase?: string
 }
 
+export interface CultureFitInsights {
+  personality_signals?: string[]
+  communication_insights?: string[]
+  startup_fit_score?: number
+  leadership_indicators?: string[]
+  adaptability_score?: number
+  authenticity_signals?: string[]
+  red_flags?: string[]
+  psychological_summary?: string
+  cultural_alignment_score?: number
+  personality_profile?: string
+}
+
 export interface LiveFeedback {
   headline: string
   strengths: string[]
@@ -44,6 +57,7 @@ export type InterviewWsEvent =
   | { type: "pong" }
   | { type: "content_analysis"; scores: InterviewScores; content: Record<string, unknown> }
   | { type: "scores_update"; scores: InterviewScores }
+  | { type: "culture_insights"; insights: CultureFitInsights; scores?: InterviewScores }
   | { type: "live_feedback"; feedback: LiveFeedback; scores?: InterviewScores }
   | { type: "audio_analysis"; scores: InterviewScores; audio: Record<string, unknown> }
   | { type: "facial_analysis"; scores: InterviewScores; facial: Record<string, unknown> }
@@ -89,6 +103,9 @@ export interface InterviewScores {
 }
 
 export interface CreateSessionResponse {
+  agent_type?: string
+  agent_display_name?: string
+  company_style?: string
   session_id: string
   ws_url: string
   status: string

@@ -41,6 +41,9 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     aiThinking,
     phaseLabel,
     progressPct,
+    cultureInsights,
+    agentDisplayName,
+    agentType,
     conversation,
     transcriptLines,
     contentSummary,
@@ -207,6 +210,8 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
           <LiveFeedbackPanel feedback={liveFeedback} />
 
           <AIInterviewerPanel
+            agentName={agentDisplayName}
+            agentRole={agentType}
             question={displayQuestion}
             connected={connected}
             thinking={aiThinking}
@@ -341,7 +346,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
           </h2>
           {role === "recruiter" ? (
             <>
-              <RecruiterInsights scores={scores} events={events} sessionId={sessionId} />
+              <RecruiterInsights scores={scores} events={events} sessionId={sessionId} cultureInsights={cultureInsights} personalityProfile={cultureInsights?.personality_profile} agentDisplayName={agentDisplayName} />
               <ScoreCards scores={scores} />
             </>
           ) : (

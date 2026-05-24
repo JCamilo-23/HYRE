@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Loader2, Sparkles, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { checkInterviewBackend, createInterviewSession } from "@/modules/ai-interview/api"
+import { checkInterviewBackend, createInterviewSession, fetchInterviewAgents } from "@/modules/ai-interview/api"
 
 export default function InterviewLobbyPage() {
   const router = useRouter()
@@ -13,6 +13,9 @@ export default function InterviewLobbyPage() {
   const [error, setError] = useState<string | null>(null)
   const [backendOk, setBackendOk] = useState<boolean | null>(null)
   const [geminiOk, setGeminiOk] = useState<boolean | null>(null)
+  const [agentType, setAgentType] = useState<"auto" | "tech" | "creative" | "business">("auto")
+  const [companyStyle, setCompanyStyle] = useState<"startup" | "google" | "creative" | "corporate" | "balanced">("startup")
+  const [agents, setAgents] = useState<{ id: string; name: string; label: string }[]>([])
 
   useEffect(() => {
     checkInterviewBackend().then((status) => {
@@ -23,6 +26,10 @@ export default function InterviewLobbyPage() {
         setError(null)
       }
     })
+  }, [])
+
+  useEffect(() => {
+    fetchInterviewAgents().then(setAgents)
   }, [])
 
   async function startInterview() {
@@ -44,6 +51,8 @@ export default function InterviewLobbyPage() {
         candidate_id: candidateId,
         job_context: "Desarrollador Full Stack — HYRE",
         required_skills: ["react", "typescript", "comunicación", "trabajo en equipo"],
+        agent_type: agentType,
+        company_profile: { style: companyStyle, intensity: "medium", name: "HYRE" },
       })
       if (session.opening_question) {
         sessionStorage.setItem(
@@ -106,6 +115,37 @@ export default function InterviewLobbyPage() {
         {backendOk && geminiOk && (
           <p className="mt-4 text-xs text-[#10B981]">✓ Backend y Gemini listos</p>
         )}
+
+        
+        <div className="mt-6 space-y-3 text-left">
+          <label className="block text-xs text-[#94A3B8]">Reclutador IA</label>
+          <select
+            value={agentType}
+            onChange={(e) => setAgentType(e.target.value as typeof agentType)}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          >
+            <option value="auto">Auto (detectar rol)</option>
+            {(agents.length ? agents : [
+              { id: "tech", name: "Alex Rivera", label: "" },
+              { id: "creative", name: "Sofia Mendez", label: "" },
+              { id: "business", name: "Jordan Blake", label: "" },
+            ]).map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <label className="block text-xs text-[#94A3B8]">Cultura empresa</label>
+          <select
+            value={companyStyle}
+            onChange={(e) => setCompanyStyle(e.target.value as typeof companyStyle)}
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          >
+            <option value="startup">Startup elite</option>
+            <option value="google">Google-style (analítico)</option>
+            <option value="creative">Creativo premium</option>
+            <option value="corporate">Corporativo</option>
+            <option value="balanced">Equilibrado</option>
+          </select>
+        </div>
 
         {error && <p className="mt-4 text-sm text-[#F87171]">{error}</p>}
         <Button

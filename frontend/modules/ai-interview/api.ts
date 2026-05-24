@@ -41,7 +41,29 @@ export async function checkInterviewBackend(): Promise<{
   }
 }
 
-export async function createInterviewSession(body: {
+export interface CreateSessionOptions {
+  candidate_id: string
+  job_context?: string
+  required_skills?: string[]
+  agent_type?: "auto" | "tech" | "creative" | "business"
+  company_profile?: {
+    name?: string
+    style?: "balanced" | "google" | "startup" | "creative" | "corporate"
+    intensity?: "relaxed" | "medium" | "intense"
+    values?: string[]
+  }
+}
+
+export async function fetchInterviewAgents(): Promise<
+  { id: string; name: string; label: string }[]
+> {
+  const res = await fetch("/api/interviews/agents", { cache: "no-store" })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.agents ?? []
+}
+
+export async function createInterviewSession(body: CreateSessionOptions & {
   candidate_id: string
   job_context?: string
   required_skills?: string[]
@@ -60,6 +82,8 @@ export async function createInterviewSession(body: {
           "trabajo en equipo",
         ],
         mode: "live",
+        agent_type: body.agent_type ?? "auto",
+        company_profile: body.company_profile ?? { style: "startup", intensity: "medium" },
       }),
     })
   } catch {

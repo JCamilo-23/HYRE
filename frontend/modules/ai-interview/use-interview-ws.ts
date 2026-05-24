@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type {
   ConversationEntry,
+  CultureFitInsights,
   InterviewPhaseId,
   InterviewReport,
   InterviewScores,
@@ -21,6 +22,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
   const [lastInterviewerMessage, setLastInterviewerMessage] = useState<string | null>(null)
   const [liveFeedback, setLiveFeedback] = useState<LiveFeedback | null>(null)
+  const [cultureInsights, setCultureInsights] = useState<CultureFitInsights | null>(null)
+  const [agentDisplayName, setAgentDisplayName] = useState<string | null>(null)
+  const [agentType, setAgentType] = useState<string | null>(null)
   const [finalReport, setFinalReport] = useState<InterviewReport | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [interviewEnded, setInterviewEnded] = useState(false)
@@ -90,6 +94,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
         if (data.type === "ai_thinking" && "thinking" in data) {
           setAiThinking(Boolean(data.thinking))
         }
+        if (data.type === "culture_insights" && data.insights) {
+          setCultureInsights(data.insights)
+        }
         if (data.type === "live_feedback" && data.feedback) {
           setLiveFeedback(data.feedback)
         }
@@ -100,12 +107,16 @@ export function useInterviewWebSocket(sessionId: string | null) {
           if ("difficulty" in data && data.difficulty) setDifficulty(data.difficulty)
         }
         if (data.type === "interviewer_message") {
+          if ("agent_display_name" in data && data.agent_display_name) {
+            setAgentDisplayName(String(data.agent_display_name))
+          }
           const msg = data.message || data.question || ""
           const q = data.question || msg
           setLastInterviewerMessage(msg)
           setLastQuestion(q)
           if (data.phase_label) setPhaseLabel(data.phase_label)
           if (data.phase) setPhase(data.phase as InterviewPhaseId)
+          if ("agent_type" in data && data.agent_type) setAgentType(String(data.agent_type))
           if (typeof data.progress_pct === "number") setProgressPct(data.progress_pct)
           appendConversation({ role: "interviewer", content: msg, question: q, phase: data.phase })
         }
@@ -224,6 +235,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
     sendVideoFrame,
     sendAudioChunk,
     requestQuestion,
+    cultureInsights,
+    agentDisplayName,
+    agentType,
     endInterview,
     reconnect: connect,
   }
