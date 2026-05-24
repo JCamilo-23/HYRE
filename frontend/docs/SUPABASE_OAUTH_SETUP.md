@@ -99,6 +99,7 @@ SUPABASE_AUTH_LINKEDIN_SECRET=...
 
 | Error | Causa probable |
 |-------|----------------|
+| `Unsupported provider: provider is not enabled` | El proveedor no está activado en Supabase → Authentication → Providers. HYRE oculta botones OAuth no habilitados; usa correo o activa Google/Apple/LinkedIn OIDC. |
 | `redirect_uri_mismatch` | Redirect URL no coincide en Google/Apple/LinkedIn |
 | `invalid flow state` | Callback URL no está en Supabase Redirect URLs |
 | Perfil sin rol | Ejecutar migración `002_oauth_profiles.sql` |

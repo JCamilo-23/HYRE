@@ -17,6 +17,7 @@ import { BottomNav } from "@/components/skillmatch/bottom-nav"
 import { NovaAppSync } from "@/components/nova/nova-root"
 import { createClient } from "@/lib/supabase/client"
 import { mapRoleToUserType } from "@/modules/auth/utils"
+import { formatAuthError } from "@/lib/auth/error-messages"
 import type { Profile } from "@/modules/auth/types"
 
 import type { Screen, UserData } from "@/lib/hyre-types"
@@ -67,7 +68,7 @@ export function HyreApp() {
     const reason = searchParams.get("reason")
 
     if (authStatus === "error") {
-      setAuthError(reason ?? "No se pudo completar el inicio de sesion")
+      setAuthError(formatAuthError(reason))
       setCurrentScreen("register")
     }
 
@@ -109,7 +110,7 @@ export function HyreApp() {
           <>
             {authError && (
               <div className="mx-6 mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                {decodeURIComponent(authError)}
+                {authError}
               </div>
             )}
             <RegisterScreen userType={userType} onComplete={handleRegisterComplete} />

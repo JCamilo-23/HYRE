@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getSupabaseConfigStatus } from "@/lib/supabase/config-status"
+import {
+  fetchAuthProviderSettings,
+  getEnabledOAuthProviders,
+} from "@/lib/supabase/auth-providers"
 
 export async function GET() {
   const status = getSupabaseConfigStatus()
   let reachable = false
   let authHealth: string | null = null
+  let providers: Awaited<ReturnType<typeof fetchAuthProviderSettings>> | null = null
+  let enabledOAuth: string[] = []
 
   if (status.configured && status.url && status.keyValid) {
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
     try {
-      const res = await fetch(`${status.url}/auth/v1/settings`, {
-        headers: anonKey ? { apikey: anonKey } : undefined,
-        next: { revalidate: 0 },
-      })
-      reachable = res.ok
-      authHealth = res.ok ? "ok" : `HTTP ${res.status}`
+      if (anonKey) {
+        providers = await fetchAuthProviderSettings(status.url, anonKey)
+        enabledOAuth = getEnabledOAuthProviders(providers)
+        reachable = true
+        authHealth = "ok"
+      }
     } catch (e) {
       authHealth = e instanceof Error ? e.message : "unreachable"
     }
@@ -26,6 +32,9 @@ export async function GET() {
     urlHost: status.url ? new URL(status.url).hostname : null,
     reachable,
     authHealth,
+    emailEnabled: providers?.email ?? false,
+    enabledOAuth,
+    mailerAutoconfirm: providers?.mailerAutoconfirm ?? null,
   })
 }
 
