@@ -3,9 +3,14 @@ import type { CvAnalysis } from "@/lib/hyre-types"
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 export function getGeminiVisionModels(): string[] {
-  const primary = process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
-  const vision = process.env.GEMINI_VISION_MODEL ?? "gemini-1.5-flash"
-  return [...new Set([vision, primary, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"])]
+  const primary = process.env.GEMINI_VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
+  return [...new Set([
+    primary,
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
+    "gemini-2.5-pro",
+  ])]
 }
 
 const OCR_SYSTEM = `Eres un motor de OCR especializado en curriculums vitae.
