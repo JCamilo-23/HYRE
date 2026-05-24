@@ -1,5 +1,15 @@
 export type CandidateStatus = "pending" | "accepted" | "rejected"
 
+export interface SimulationResult {
+  score: number
+  passed: boolean
+  quality: "insuficiente" | "aceptable" | "bueno" | "excelente"
+  feedback: string
+  strengths: string[]
+  improvements: string[]
+  completedAt: string
+}
+
 export interface EmployerCandidate {
   id: number
   name: string
@@ -14,6 +24,7 @@ export interface EmployerCandidate {
   summary: string
   highlights: string[]
   categories: { label: string; score: number }[]
+  simulation?: SimulationResult
 }
 
 export const EMPLOYER_CANDIDATES: EmployerCandidate[] = [
@@ -36,6 +47,15 @@ export const EMPLOYER_CANDIDATES: EmployerCandidate[] = [
       { label: "Tecnico", score: 86 },
       { label: "Cultura", score: 90 },
     ],
+    simulation: {
+      score: 91,
+      passed: true,
+      quality: "excelente",
+      feedback: "Entregable listo para enviar a cliente real. Estructura clara, ownership total y manejo excelente del deadline.",
+      strengths: ["Comunicación bajo presión", "Criterio de priorización", "Redacción profesional"],
+      improvements: ["Podría incluir métricas de impacto más específicas"],
+      completedAt: "Hace 3 horas",
+    },
   },
   {
     id: 2,

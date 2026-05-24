@@ -7,7 +7,8 @@ export async function saveSession(
   session: WorkSimulatorSession,
   supabase: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from("work_simulator_sessions")
     .upsert({
       id: session.id,
@@ -26,7 +27,8 @@ export async function getSession(
   id: string,
   supabase: SupabaseClient,
 ): Promise<WorkSimulatorSession | null> {
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from("work_simulator_sessions")
     .select("*")
     .eq("id", id)

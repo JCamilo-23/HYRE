@@ -13,6 +13,10 @@ import {
   UserCheck,
   Users,
   XCircle,
+  Briefcase,
+  CheckCircle2,
+  TrendingUp,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EMPLOYER_CANDIDATES, EmployerCandidate } from "@/lib/employer-mock-data"
@@ -159,7 +163,15 @@ export function EmployerCandidatesScreen() {
                   </div>
                   <p className="text-[#94A3B8] text-sm">{candidate.role}</p>
                   <div className="flex items-center justify-between mt-2">
-                    <StatusBadge status={candidate.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={candidate.status} />
+                      {candidate.simulation && (
+                        <SimulationBadge
+                          score={candidate.simulation.score}
+                          passed={candidate.simulation.passed}
+                        />
+                      )}
+                    </div>
                     <span className="text-[#475569] text-xs flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {candidate.evaluatedAt}
@@ -170,6 +182,117 @@ export function EmployerCandidatesScreen() {
               </div>
             </motion.button>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SimulationBadge({ score, passed }: { score: number; passed: boolean }) {
+  return (
+    <span
+      className="px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1"
+      style={{
+        color: passed ? "#10B981" : "#F59E0B",
+        backgroundColor: passed ? "#10B98120" : "#F59E0B20",
+      }}
+    >
+      <Briefcase className="w-3 h-3" />
+      Simuló · {score}
+    </span>
+  )
+}
+
+function SimulationSection({ simulation }: { simulation: NonNullable<EmployerCandidate["simulation"]> }) {
+  const qualityColors: Record<string, string> = {
+    excelente:   "#10B981",
+    bueno:       "#06B6D4",
+    aceptable:   "#F59E0B",
+    insuficiente: "#EF4444",
+  }
+  const color = qualityColors[simulation.quality] ?? "#94A3B8"
+
+  return (
+    <div className="px-6 mb-6">
+      <h2 className="text-[#F1F5F9] font-medium mb-3 flex items-center gap-2">
+        <Briefcase className="w-4 h-4 text-[#7C3AED]" />
+        Simulación laboral
+      </h2>
+
+      {/* Score card */}
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="glass rounded-2xl p-5 mb-3 flex items-center gap-4"
+        style={{ borderColor: `${color}40`, borderWidth: 1 }}
+      >
+        <div
+          className="w-16 h-16 rounded-xl flex flex-col items-center justify-center shrink-0"
+          style={{ backgroundColor: `${color}15` }}
+        >
+          <span className="text-2xl font-bold" style={{ color }}>{simulation.score}</span>
+          <span className="text-xs" style={{ color }}>/ 100</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            {simulation.passed ? (
+              <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-[#F59E0B] shrink-0" />
+            )}
+            <span className="text-[#F1F5F9] font-medium text-sm">
+              {simulation.passed ? "Aprobó la simulación" : "No alcanzó el mínimo"}
+            </span>
+          </div>
+          <span
+            className="px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+            style={{ color, backgroundColor: `${color}20` }}
+          >
+            {simulation.quality}
+          </span>
+          <p className="text-[#475569] text-xs mt-1.5 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {simulation.completedAt}
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Feedback */}
+      <div className="glass rounded-xl p-4 mb-3">
+        <p className="text-[#94A3B8] text-sm leading-relaxed">{simulation.feedback}</p>
+      </div>
+
+      {/* Fortalezas */}
+      <div className="glass rounded-xl p-4 mb-3">
+        <p className="text-[#F1F5F9] text-xs font-medium mb-2 flex items-center gap-1.5">
+          <TrendingUp className="w-3.5 h-3.5 text-[#10B981]" />
+          Fortalezas demostradas
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {simulation.strengths.map((s) => (
+            <div key={s} className="flex items-start gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981] shrink-0 mt-0.5" />
+              <span className="text-[#94A3B8] text-sm">{s}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Áreas de mejora */}
+      {simulation.improvements.length > 0 && (
+        <div className="glass rounded-xl p-4">
+          <p className="text-[#F1F5F9] text-xs font-medium mb-2 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-[#F59E0B]" />
+            Áreas de mejora
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {simulation.improvements.map((s) => (
+              <div key={s} className="flex items-start gap-2">
+                <span className="text-[#F59E0B] text-xs mt-0.5">•</span>
+                <span className="text-[#94A3B8] text-sm">{s}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -316,6 +439,19 @@ function CandidateReportDetail({
           ))}
         </div>
       </div>
+
+      {candidate.simulation ? (
+        <SimulationSection simulation={candidate.simulation} />
+      ) : (
+        <div className="px-6 mb-6">
+          <div className="glass rounded-xl p-4 flex items-center gap-3">
+            <Briefcase className="w-5 h-5 text-[#475569] shrink-0" />
+            <p className="text-[#475569] text-sm">
+              Este candidato aún no completó la simulación laboral para esta vacante.
+            </p>
+          </div>
+        </div>
+      )}
 
       {isPending && (
         <div className="px-6 flex gap-2">
