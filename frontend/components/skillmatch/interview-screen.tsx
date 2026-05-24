@@ -20,7 +20,7 @@ import {
   Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 
 interface InterviewScreenProps {
   onNavigate: (screen: Screen) => void

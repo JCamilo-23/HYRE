@@ -1,17 +1,32 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: '--font-inter'
+  variable: '--font-inter',
+})
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: '--font-display',
 })
 
 export const metadata: Metadata = {
-  title: 'HYRE - Demuestra tu potencial',
-  description: 'La plataforma Gen Z que conecta jovenes con oportunidades laborales mediante IA, simulaciones y entrevistas inteligentes.',
+  title: 'HYRE — Demuestra tu potencial con IA',
+  description:
+    'La plataforma Gen Z que conecta jovenes con oportunidades laborales mediante IA, simulaciones y entrevistas inteligentes.',
   generator: 'HYRE',
-  keywords: ['empleo', 'jovenes', 'Gen Z', 'IA', 'simulaciones laborales', 'entrevistas IA', 'trabajo'],
+  keywords: [
+    'empleo',
+    'jovenes',
+    'Gen Z',
+    'IA',
+    'hiring',
+    'simulaciones laborales',
+    'entrevistas IA',
+    'trabajo',
+  ],
   authors: [{ name: 'HYRE Team' }],
   icons: {
     icon: [
@@ -31,9 +46,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#0f0a1f',
+  themeColor: '#0a0614',
 }
 
 export default function RootLayout({
@@ -42,8 +55,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className="dark bg-background">
-      <body className={`${inter.variable} font-sans antialiased bg-background`}>
+    <html lang="es" className="dark scroll-smooth">
+      <body
+        className={`${inter.variable} ${spaceGrotesk.variable} font-sans antialiased bg-background`}
+      >
         {children}
       </body>
     </html>

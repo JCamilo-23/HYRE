@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowLeft, Send, Sparkles, Loader2 } from "lucide-react"
-import { Screen, UserData } from "@/app/page"
+import { Screen, UserData } from "@/lib/hyre-types"
 
 interface MentorScreenProps {
   onNavigate: (screen: Screen) => void

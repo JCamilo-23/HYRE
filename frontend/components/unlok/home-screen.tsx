@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import type { Screen } from "@/app/page"
+import type { Screen } from "@/lib/hyre-types"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
