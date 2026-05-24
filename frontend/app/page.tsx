@@ -1,16 +1,5 @@
-import { HyreApp } from "@/components/skillmatch/hyre-app"
+import { LandingPage } from "@/components/landing/landing-page"
 
 export default function Home() {
-  return (
-    <HyreApp
-      initialScreen="home"
-      initialUserType="candidate"
-      initialIsOnboarded
-      initialUserData={{
-        name: "Empleado",
-        email: "",
-        userType: "candidate",
-      }}
-    />
-  )
+  return <LandingPage />
 }
