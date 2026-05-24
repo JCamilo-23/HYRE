@@ -250,19 +250,23 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                         {"type": "error", "message": str(exc)},
                     )
                     continue
-                try:
-                    hint = await asyncio.to_thread(
-                        gemini.stream_coaching_hint,
-                        candidate_answer=text,
-                        stress_level=float(result.get("scores", {}).get("confidence_score", 50)),
-                    )
-                    await ws_manager.send_json(
-                        websocket,
-                        {"type": "coaching_hint", "hint": hint, **result},
-                    )
-                except Exception as exc:
-                    logger.warning("Coaching hint skipped: %s", exc)
-                    await ws_manager.send_json(websocket, {"type": "content_analysis", **result})
+                async def _push_coaching() -> None:
+                    try:
+                        hint = await asyncio.to_thread(
+                            gemini.stream_coaching_hint,
+                            candidate_answer=text,
+                            stress_level=float(
+                                result.get("scores", {}).get("confidence_score", 50)
+                            ),
+                        )
+                        await ws_manager.send_json(
+                            websocket,
+                            {"type": "coaching_hint", "hint": hint, **result},
+                        )
+                    except Exception as exc:
+                        logger.warning("Coaching hint skipped: %s", exc)
+
+                asyncio.create_task(_push_coaching())
                 continue
 
             if event_type == "audio_chunk":
