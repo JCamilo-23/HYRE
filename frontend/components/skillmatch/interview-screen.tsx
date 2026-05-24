@@ -41,6 +41,7 @@ const checklistItems = [
 const JOB_CONTEXT = "Desarrollador Full Stack — HYRE"
 
 function pickMimeType(): string {
+  if (typeof MediaRecorder === "undefined") return ""
   const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"]
   return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? ""
 }
@@ -56,10 +57,9 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [micOn, setMicOn] = useState(true)
   const [cameraOn, setCameraOn] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
-  const [isTranscribing, setIsTranscribing] = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [sttListening, setSttListening] = useState(false)
+  const [sttInterim, setSttInterim] = useState("")
 
-  // Refs — stable across renders
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const messagesRef = useRef<Message[]>([])
@@ -67,6 +67,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const pendingRef = useRef("")
   const autoSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wantListeningRef = useRef(false)
 
   // MediaRecorder + VAD refs
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -79,7 +80,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const transcribeRef = useRef<(() => void) | null>(null)
   const micOnRef = useRef(true)
 
-  // Sync refs with state
+  // Sync refs
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { loadingRef.current = loading }, [loading])
   useEffect(() => { micOnRef.current = micOn }, [micOn])
@@ -87,7 +88,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   // Timer
   useEffect(() => {
     if (stage !== "live") return
-    const id = setInterval(() => setTimer((t) => t + 1), 1000)
+    const id = setInterval(() => setTimer(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [stage])
 
@@ -96,29 +97,25 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Camera + MediaRecorder + VAD — only when live
+  // Camera + MediaRecorder + VAD — solo cuando entra en "live"
   useEffect(() => {
     if (stage !== "live") return
     let active = true
-
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((media) => {
-        if (!active) { media.getTracks().forEach((t) => t.stop()); return }
+      .then(media => {
+        if (!active) { media.getTracks().forEach(t => t.stop()); return }
         streamRef.current = media
         if (videoRef.current) videoRef.current.srcObject = media
 
-        // ── MediaRecorder ──────────────────────────────────────────────
+        // ── MediaRecorder ───────────────────────────────────────────────
         const mime = pickMimeType()
         const recorder = new MediaRecorder(media, mime ? { mimeType: mime } : undefined)
         recorderRef.current = recorder
         chunksRef.current = []
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+        recorder.start(300)
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data)
-        }
-        recorder.start(300) // chunk every 300 ms
-
-        // ── AudioContext VAD ───────────────────────────────────────────
+        // ── AudioContext VAD ─────────────────────────────────────────────
         const ctx = new AudioContext()
         audioCtxRef.current = ctx
         const source = ctx.createMediaStreamSource(media)
@@ -126,61 +123,95 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         analyser.fftSize = 256
         source.connect(analyser)
         analyserRef.current = analyser
-
         const freqData = new Uint8Array(analyser.frequencyBinCount)
-        const SPEECH_THRESHOLD = 18  // 0-255
-        const SILENCE_MS = 1200
+
+        wantListeningRef.current = true
+        setSttListening(true)
 
         vadIntervalRef.current = setInterval(() => {
           if (!analyserRef.current || !micOnRef.current) return
           analyserRef.current.getByteFrequencyData(freqData)
           const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length
-
-          if (avg > SPEECH_THRESHOLD) {
+          if (avg > 18) {
             wasSpeakingRef.current = true
-            setIsSpeaking(true)
             if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
           } else if (wasSpeakingRef.current && !silenceTimerRef.current) {
-            setIsSpeaking(false)
             silenceTimerRef.current = setTimeout(() => {
               wasSpeakingRef.current = false
               silenceTimerRef.current = null
               transcribeRef.current?.()
-            }, SILENCE_MS)
+            }, 1200)
           }
         }, 100)
       })
-      .catch((err) => {
+      .catch(err => {
         const name = err instanceof DOMException ? err.name : ""
         setMediaError(
           name === "NotAllowedError" || name === "PermissionDeniedError"
             ? "Permiso de cámara denegado."
-            : "No se encontró cámara o micrófono.",
+            : "No se encontró cámara o micrófono."
         )
       })
-
     return () => {
       active = false
+      wantListeningRef.current = false
       if (vadIntervalRef.current) { clearInterval(vadIntervalRef.current); vadIntervalRef.current = null }
       if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
-      recorderRef.current?.stop()
-      recorderRef.current = null
-      audioCtxRef.current?.close()
-      audioCtxRef.current = null
+      recorderRef.current?.stop(); recorderRef.current = null
+      audioCtxRef.current?.close(); audioCtxRef.current = null
       analyserRef.current = null
-      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
   }, [stage])
 
-  // Restore srcObject when camera re-enabled
+  // Restaurar srcObject cuando cameraOn vuelve a true
   useEffect(() => {
     if (cameraOn && streamRef.current && videoRef.current) {
       videoRef.current.srcObject = streamRef.current
     }
   }, [cameraOn])
 
-  // ── Core callbacks ────────────────────────────────────────────────────────
+  // AssemblyAI transcription — called by VAD after silence
+  const transcribeAudio = useCallback(() => {
+    const chunks = [...chunksRef.current]
+    chunksRef.current = []
+    if (chunks.length < 2) return
+    const mime = chunks[0].type || "audio/webm"
+    const blob = new Blob(chunks, { type: mime })
+    if (blob.size < 600) return
+
+    setSttInterim("Transcribiendo...")
+    const reader = new FileReader()
+    reader.onloadend = async () => {
+      const b64 = (reader.result as string).split(",")[1]
+      try {
+        const res = await fetch("/api/interviews/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio: b64, mimeType: mime }),
+        })
+        const { text }: { text: string } = await res.json()
+        if (text?.trim()) {
+          setSttInterim("")
+          pendingRef.current = (pendingRef.current + " " + text).trim()
+          setInput(pendingRef.current)
+          if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+          autoSendTimer.current = setTimeout(() => {
+            const t = pendingRef.current
+            pendingRef.current = ""
+            if (t && !loadingRef.current) doSend(t)
+          }, 2500)
+        } else {
+          setSttInterim("")
+        }
+      } catch { setSttInterim("") }
+    }
+    reader.readAsDataURL(blob)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doSend])
+
+  useEffect(() => { transcribeRef.current = transcribeAudio }, [transcribeAudio])
 
   const doSend = useCallback((text: string) => {
     const trimmed = text.trim()
@@ -198,7 +229,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ history: updated, jobContext: JOB_CONTEXT }),
     })
-      .then((r) => r.json())
+      .then(r => r.json())
       .then(({ reply, finished }: { reply: string; finished?: boolean }) => {
         const final: Message[] = [...updated, { role: "assistant", content: reply }]
         setMessages(final)
@@ -208,14 +239,16 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         if (finished) setTimeout(() => doGenerateReport(final), 1200)
       })
       .catch(() => { loadingRef.current = false; setLoading(false) })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const doGenerateReport = useCallback(async (history: Message[]) => {
     if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
     if (vadIntervalRef.current) { clearInterval(vadIntervalRef.current); vadIntervalRef.current = null }
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
-    recorderRef.current?.stop()
-    streamRef.current?.getTracks().forEach((t) => t.stop())
+    wantListeningRef.current = false
+    recorderRef.current?.stop(); recorderRef.current = null
+    audioCtxRef.current?.close(); audioCtxRef.current = null
+    streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     setStage("processing")
     try {
@@ -225,61 +258,31 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         body: JSON.stringify({ history, jobContext: JOB_CONTEXT }),
       })
       setReport(await res.json())
-    } catch { /* fallback from backend */ }
+    } catch { /* usa fallback del backend */ }
     setStage("report")
   }, [])
 
-  // Gemini transcription — called by VAD after silence
-  const transcribeAudio = useCallback(() => {
-    const chunks = [...chunksRef.current]
-    chunksRef.current = []
-    if (chunks.length < 2) return
-
-    const mime = chunks[0].type || "audio/webm"
-    const blob = new Blob(chunks, { type: mime })
-    if (blob.size < 600) return
-
-    setIsTranscribing(true)
-    const reader = new FileReader()
-    reader.onloadend = async () => {
-      const b64 = (reader.result as string).split(",")[1]
-      try {
-        const res = await fetch("/api/interviews/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: b64, mimeType: mime }),
-        })
-        const { text }: { text: string } = await res.json()
-        if (text?.trim()) {
-          pendingRef.current = (pendingRef.current + " " + text).trim()
-          setInput(pendingRef.current)
-          if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-          autoSendTimer.current = setTimeout(() => {
-            const t = pendingRef.current
-            pendingRef.current = ""
-            if (t && !loadingRef.current) doSend(t)
-          }, 2500)
-        }
-      } catch { /* silent */ }
-      setIsTranscribing(false)
+  const toggleStt = useCallback(() => {
+    if (sttListening) {
+      wantListeningRef.current = false
+      setSttListening(false)
+    } else {
+      wantListeningRef.current = true
+      setSttListening(true)
     }
-    reader.readAsDataURL(blob)
-  }, [doSend])
-
-  // Keep transcribeRef in sync so the VAD interval can call it without stale closure
-  useEffect(() => { transcribeRef.current = transcribeAudio }, [transcribeAudio])
+  }, [sttListening])
 
   const handleToggleMic = useCallback(() => {
-    setMicOn((prev) => {
-      streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = prev }) // toggle: if was true, disable
+    setMicOn(prev => {
+      streamRef.current?.getAudioTracks().forEach(t => { t.enabled = !prev })
       return !prev
     })
   }, [])
 
   const handleToggleCamera = useCallback(() => {
-    setCameraOn((prev) => {
+    setCameraOn(prev => {
       const next = !prev
-      streamRef.current?.getVideoTracks().forEach((t) => { t.enabled = next })
+      streamRef.current?.getVideoTracks().forEach(t => { t.enabled = next })
       return next
     })
   }, [])
@@ -351,7 +354,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         </div>
 
         <label className="flex items-start gap-3 my-4 cursor-pointer">
-          <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)}
+          <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)}
             className="mt-1 w-4 h-4 rounded border-[#475569] bg-[#1A1A2E] text-[#7C3AED] focus:ring-[#7C3AED]" />
           <span className="text-[#94A3B8] text-sm">Acepto que mis respuestas sean analizadas por IA</span>
         </label>
@@ -442,18 +445,17 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   // ── LIVE ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A12]">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 glass shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#EF4444] animate-pulse" />
           <span className="text-[#EF4444] text-xs font-medium">Grabando</span>
         </div>
         <span className="text-[#F1F5F9] font-mono text-sm">{formatTime(timer)}</span>
-        <span className="text-[#94A3B8] text-xs">{messages.filter((m) => m.role === "assistant").length} / 8</span>
+        <span className="text-[#94A3B8] text-xs">{messages.filter(m => m.role === "assistant").length} / 8</span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Camera — always mounted, CSS controls visibility */}
+        {/* Camera — siempre montada, controlada por CSS */}
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-[#1A1A2E] mb-2">
           <video
             ref={videoRef}
@@ -468,25 +470,12 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
               {mediaError && <p className="text-xs text-[#475569] text-center px-4">{mediaError}</p>}
             </div>
           )}
-
-          {/* AI label */}
           <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 rounded-full px-3 py-1.5">
             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center">
               <span className="text-white text-[10px] font-bold">AI</span>
             </div>
             <span className="text-white text-xs">Alex — Entrevistador IA</span>
           </div>
-
-          {/* Speech indicator */}
-          {isSpeaking && (
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-              <span className="w-1.5 h-3 rounded-full bg-[#10B981] animate-pulse" style={{ animationDelay: "100ms" }} />
-              <span className="w-1.5 h-2 rounded-full bg-[#10B981] animate-pulse" style={{ animationDelay: "200ms" }} />
-            </div>
-          )}
-
-          {/* Controls */}
           <div className="absolute bottom-3 right-3 flex gap-2">
             <button onClick={handleToggleMic} className={`w-8 h-8 rounded-full flex items-center justify-center ${micOn ? "bg-white/20" : "bg-[#EF4444]"}`}>
               {micOn ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-white" />}
@@ -497,7 +486,6 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           </div>
         </div>
 
-        {/* Messages */}
         <AnimatePresence>
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -512,7 +500,6 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           ))}
         </AnimatePresence>
 
-        {/* AI typing indicator */}
         {loading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center shrink-0">
@@ -525,32 +512,25 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
             </div>
           </motion.div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
       <div className="px-4 pb-6 pt-3 glass shrink-0">
-        {/* Transcription status */}
-        {isTranscribing && (
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <Loader2 className="w-3 h-3 text-[#7C3AED] animate-spin" />
-            <span className="text-xs text-[#7C3AED]">Transcribiendo...</span>
-          </div>
+        {sttInterim && (
+          <p className="text-xs text-[#7C3AED] mb-1 px-1 flex items-center gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" /> {sttInterim}
+          </p>
         )}
-        {isSpeaking && !isTranscribing && (
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-            <span className="text-xs text-[#10B981]">Escuchando...</span>
-          </div>
-        )}
-
         <div className="flex gap-2">
+          <button onClick={toggleStt}
+            className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 transition-colors ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
+            <Mic className="w-4 h-4 text-white" />
+          </button>
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder="Habla — o escribe tu respuesta..."
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+            placeholder="Habla o escribe tu respuesta..."
             rows={2}
             className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none resize-none"
           />
