@@ -58,12 +58,13 @@ export const useNovaStore = create<NovaState>((set, get) => ({
     const { messages, userName } = get()
     if (messages.length > 0) return
     const firstName = userName.split(" ")[0] || "amigo"
+    const displayName = firstName !== "Usuario" ? firstName : "amigo"
     set({
       messages: [
         {
           id: "greeting",
           role: "assistant",
-          content: buildGreeting(firstName),
+          content: buildGreeting(displayName),
         },
       ],
     })
