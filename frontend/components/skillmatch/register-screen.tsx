@@ -5,6 +5,8 @@ import { Mail, Lock, Eye, EyeOff, ArrowLeft, ChevronRight, Loader2 } from "lucid
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
+import { assertSupabaseConfigured, isSupabaseConfigured } from "@/lib/supabase/config-status"
+import { SupabaseConfigBanner } from "@/components/auth/supabase-config-banner"
 import { signInWithOAuthProvider } from "@/modules/auth/oauth"
 import { mapUserTypeToRole } from "@/modules/auth/utils"
 import type { OAuthProvider } from "@/modules/auth/utils"
@@ -70,6 +72,7 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const role = mapUserTypeToRole(userType)
+  const supabaseReady = isSupabaseConfigured()
 
   const validateSignupForm = () => {
     const newErrors: Record<string, string> = {}
@@ -121,6 +124,13 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
   const handleEmailAuth = async () => {
     setAuthError(null)
+    try {
+      assertSupabaseConfigured()
+    } catch (e) {
+      setAuthError(e instanceof Error ? e.message : "Supabase no configurado")
+      return
+    }
+
     const isSignup = authFlow === "signup"
     if (isSignup ? !validateSignupForm() : !validateSigninForm()) return
 
@@ -178,6 +188,8 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
   if (mode === "options") {
     return (
       <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
+        <SupabaseConfigBanner />
+
         <div className="text-center mb-12 mt-8">
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#7C3AED]/20 to-[#06B6D4]/10 flex items-center justify-center glass">
             <span className="text-2xl font-bold bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] bg-clip-text text-transparent">
@@ -199,8 +211,8 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
             <Button
               key={provider.id}
               onClick={() => void handleOAuth(provider.id)}
-              disabled={isLoading || loadingProvider !== null}
-              className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3"
+              disabled={!supabaseReady || isLoading || loadingProvider !== null}
+              className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3 disabled:opacity-50"
             >
               {loadingProvider === provider.id ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -222,8 +234,8 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
               setAuthError(null)
               setMode("email")
             }}
-            disabled={isLoading || loadingProvider !== null}
-            className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3"
+            disabled={!supabaseReady || isLoading || loadingProvider !== null}
+            className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3 disabled:opacity-50"
           >
             <Mail className="w-5 h-5" />
             Usar correo electronico
@@ -254,6 +266,8 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
   return (
     <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
+      <SupabaseConfigBanner />
+
       <button
         type="button"
         onClick={() => {
@@ -378,8 +392,8 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
       <Button
         onClick={() => void handleEmailAuth()}
-        disabled={isLoading}
-        className="w-full h-14 btn-primary-gradient text-[#F1F5F9] font-medium text-base flex items-center justify-center gap-2 mt-6"
+        disabled={!supabaseReady || isLoading}
+        className="w-full h-14 btn-primary-gradient text-[#F1F5F9] font-medium text-base flex items-center justify-center gap-2 mt-6 disabled:opacity-50"
       >
         {isLoading ? (
           <Loader2 className="w-5 h-5 animate-spin" />
