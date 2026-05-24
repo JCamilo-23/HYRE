@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, ChevronRight, Loader2, CheckCircle2 } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordStrengthIndicator } from "@/components/ui/password-strength-indicator"
@@ -17,7 +17,7 @@ interface RegisterScreenProps {
 
 export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenProps) {
   const isCompany = userType === "company"
-  const [mode, setMode] = useState<"options" | "email" | "verify">("options")
+  const [mode, setMode] = useState<"options" | "email">("options")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
@@ -104,7 +104,7 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
           return
         }
       } else {
-        setMode("verify")
+        onComplete({ name: formData.name, email: formData.email })
       }
     } catch (err: unknown) {
       setErrors({ general: err instanceof Error ? err.message : "Error al crear la cuenta" })
@@ -128,38 +128,6 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSubmit()
-  }
-
-  // ─── Pantalla: verificar correo ───────────────────────────────────────────
-  if (mode === "verify") {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-8 text-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6"
-        >
-          <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-        </motion.div>
-        <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-3">Revisa tu bandeja</h1>
-        <p className="text-[#94A3B8] text-sm max-w-xs">
-          Enviamos un enlace de verificación a{" "}
-          <span className="text-[#F1F5F9] font-medium">{formData.email}</span>.
-          Haz clic en el enlace para activar tu cuenta.
-        </p>
-        <p className="text-[#475569] text-xs mt-6">
-          ¿No llegó? Revisa tu carpeta de spam o{" "}
-          <button
-            onClick={() => setMode("email")}
-            className="text-[#7C3AED] underline underline-offset-2"
-          >
-            vuelve a intentarlo
-          </button>
-          .
-        </p>
-      </div>
-    )
   }
 
   // ─── Pantalla: opciones OAuth ─────────────────────────────────────────────

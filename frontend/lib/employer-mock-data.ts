@@ -11,7 +11,9 @@ export interface SimulationResult {
 }
 
 export interface EmployerCandidate {
-  id: number
+  id: string
+  matchId: string
+  candidateId: string
   name: string
   role: string
   match: number
@@ -29,7 +31,9 @@ export interface EmployerCandidate {
 
 export const EMPLOYER_CANDIDATES: EmployerCandidate[] = [
   {
-    id: 1,
+    id: "mock-1",
+    matchId: "mock-1",
+    candidateId: "mock-candidate-1",
     name: "Maria Gonzalez",
     role: "Desarrolladora Frontend",
     match: 92,
@@ -58,7 +62,9 @@ export const EMPLOYER_CANDIDATES: EmployerCandidate[] = [
     },
   },
   {
-    id: 2,
+    id: "mock-2",
+    matchId: "mock-2",
+    candidateId: "mock-candidate-2",
     name: "Carlos Ruiz",
     role: "Desarrollador Frontend Jr",
     match: 85,
@@ -78,7 +84,9 @@ export const EMPLOYER_CANDIDATES: EmployerCandidate[] = [
     ],
   },
   {
-    id: 3,
+    id: "mock-3",
+    matchId: "mock-3",
+    candidateId: "mock-candidate-3",
     name: "Ana Lopez",
     role: "Desarrolladora Frontend",
     match: 78,

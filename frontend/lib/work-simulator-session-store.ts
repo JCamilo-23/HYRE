@@ -13,7 +13,7 @@ export async function saveSession(
     .upsert({
       id: session.id,
       user_id: session.user_id,
-      job_id: session.job_id,
+      job_id: session.job_id ?? null,
       role_title: session.role_title,
       company_name: session.company_name,
       scenario_context: session.scenario_context as Record<string, unknown>,

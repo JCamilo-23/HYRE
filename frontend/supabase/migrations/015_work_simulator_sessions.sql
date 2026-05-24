@@ -1,4 +1,7 @@
-create table public.work_simulator_sessions (
+-- Renombrado desde 008_work_simulator_sessions.sql para resolver conflicto de numeración.
+-- Usa IF NOT EXISTS porque la tabla ya existe en producción.
+
+create table if not exists public.work_simulator_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.profiles(id) on delete cascade not null,
   job_id uuid references public.jobs(id) on delete set null,
@@ -13,12 +16,14 @@ create table public.work_simulator_sessions (
 
 alter table public.work_simulator_sessions enable row level security;
 
-create policy "Users manage own work simulator sessions"
-  on public.work_simulator_sessions for all
-  using (auth.uid() = user_id);
+do $$ begin
+  create policy "Users manage own work simulator sessions"
+    on public.work_simulator_sessions for all
+    using (auth.uid() = user_id);
+exception when duplicate_object then null; end $$;
 
-create index work_simulator_sessions_user_idx on public.work_simulator_sessions(user_id);
-create index work_simulator_sessions_job_idx on public.work_simulator_sessions(job_id);
+create index if not exists work_simulator_sessions_user_idx on public.work_simulator_sessions(user_id);
+create index if not exists work_simulator_sessions_job_idx on public.work_simulator_sessions(job_id);
 
 create or replace function public.set_work_simulator_updated_at()
 returns trigger as $$
@@ -28,6 +33,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists work_simulator_sessions_updated_at on public.work_simulator_sessions;
 create trigger work_simulator_sessions_updated_at
   before update on public.work_simulator_sessions
   for each row execute function public.set_work_simulator_updated_at();

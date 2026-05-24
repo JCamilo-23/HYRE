@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       business_profiles: {
@@ -195,6 +170,13 @@ export type Database = {
           id: string
           job_id: string
           match_score: number
+          simulation_completed_at: string | null
+          simulation_feedback: string | null
+          simulation_improvements: Json | null
+          simulation_passed: boolean | null
+          simulation_quality: string | null
+          simulation_score: number | null
+          simulation_strengths: Json | null
           status: string
           updated_at: string
         }
@@ -206,6 +188,13 @@ export type Database = {
           id?: string
           job_id: string
           match_score: number
+          simulation_completed_at?: string | null
+          simulation_feedback?: string | null
+          simulation_improvements?: Json | null
+          simulation_passed?: boolean | null
+          simulation_quality?: string | null
+          simulation_score?: number | null
+          simulation_strengths?: Json | null
           status?: string
           updated_at?: string
         }
@@ -217,6 +206,13 @@ export type Database = {
           id?: string
           job_id?: string
           match_score?: number
+          simulation_completed_at?: string | null
+          simulation_feedback?: string | null
+          simulation_improvements?: Json | null
+          simulation_passed?: boolean | null
+          simulation_quality?: string | null
+          simulation_score?: number | null
+          simulation_strengths?: Json | null
           status?: string
           updated_at?: string
         }
@@ -814,9 +810,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       job_status: ["active", "paused", "closed"],

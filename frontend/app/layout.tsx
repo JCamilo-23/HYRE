@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
+import { PushPermissionBanner } from '@/components/ui/push-permission-banner'
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,6 +29,7 @@ export const metadata: Metadata = {
     'trabajo',
   ],
   authors: [{ name: 'HYRE Team' }],
+  manifest: '/manifest.json',
   icons: {
     icon: [
       {
@@ -60,6 +62,7 @@ export default function RootLayout({
         className={`${inter.variable} ${spaceGrotesk.variable} font-sans antialiased bg-background`}
       >
         {children}
+        <PushPermissionBanner />
       </body>
     </html>
   )

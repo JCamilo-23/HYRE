@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Award,
@@ -8,6 +8,7 @@ import {
   Brain,
   ChevronRight,
   Clock,
+  Loader2,
   MessageSquare,
   Target,
   UserCheck,
@@ -37,21 +38,32 @@ const categoryIcons: Record<string, typeof MessageSquare> = {
 }
 
 export function EmployerCandidatesScreen() {
-  const [candidates, setCandidates] = useState(EMPLOYER_CANDIDATES)
+  const [candidates, setCandidates] = useState<EmployerCandidate[]>(EMPLOYER_CANDIDATES)
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>("pending")
   const [selected, setSelected] = useState<EmployerCandidate | null>(null)
   const [recentAction, setRecentAction] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/employer/candidates")
+      .then((r) => r.json())
+      .then((data: EmployerCandidate[]) => {
+        if (Array.isArray(data) && data.length > 0) setCandidates(data)
+      })
+      .catch(() => {/* mantiene mock data si falla */})
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = useMemo(() => {
     if (filter === "all") return candidates
     return candidates.filter((c) => c.status === filter)
   }, [candidates, filter])
 
-  const handleDecision = (id: number, status: "accepted" | "rejected") => {
+  const handleDecision = async (id: string, status: "accepted" | "rejected") => {
     const candidate = candidates.find((c) => c.id === id)
-    setCandidates((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status } : c))
-    )
+
+    // Optimistic update
+    setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
     setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev))
     setRecentAction(
       status === "accepted"
@@ -59,6 +71,15 @@ export function EmployerCandidatesScreen() {
         : `${candidate?.name} rechazado/a`
     )
     setTimeout(() => setRecentAction(null), 3000)
+
+    // Persist + notify (solo para candidatos reales, no mock)
+    if (candidate?.matchId && !candidate.matchId.startsWith("mock-")) {
+      await fetch(`/api/employer/candidates/${candidate.matchId}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+    }
   }
 
   if (selected) {
@@ -69,6 +90,14 @@ export function EmployerCandidatesScreen() {
         onAccept={() => handleDecision(selected.id, "accepted")}
         onReject={() => handleDecision(selected.id, "rejected")}
       />
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin" />
+      </div>
     )
   }
 
