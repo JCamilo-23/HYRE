@@ -9,6 +9,10 @@ export async function POST(request: NextRequest) {
       role_title: body.role_title,
       company_name: body.company_name,
       job_id: body.job_id ?? undefined,
+      industry: body.industry,
+      job_description: body.job_description,
+      culture: body.culture,
+      benefits: body.benefits,
     })
     saveSession(session)
     return NextResponse.json(session, { status: 201 })

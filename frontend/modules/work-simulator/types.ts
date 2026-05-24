@@ -5,7 +5,10 @@ export type { WorkBlock, DeliverableType }
 export interface ScenarioContext {
   role_title?: string
   company_name?: string
+  industry?: string
   job_description?: string
+  culture?: string[]
+  benefits?: string[]
   requirements?: string[]
   phase?: string
   challenges_completed?: number
@@ -70,6 +73,10 @@ export interface CreateWorkSimulatorSessionInput {
   job_id?: string
   role_title?: string
   company_name?: string
+  industry?: string
+  job_description?: string
+  culture?: string[]
+  benefits?: string[]
 }
 
 export interface GenerateChallengeOptions {
