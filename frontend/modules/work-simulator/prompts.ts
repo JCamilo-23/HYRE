@@ -1,4 +1,4 @@
-import type { ScenarioContext } from "./types"
+import type { InterviewQuestion, ScenarioContext } from "./types"
 import type { WorkBlock } from "./constants"
 import { INDUSTRY_TASK_FOCUS } from "./constants"
 import { inferIndustryKey } from "@/lib/match-companies"
@@ -105,6 +105,88 @@ JSON (sin markdown):
   "evaluation_criteria": ["calidad", "completitud", "profesionalismo", "impacto"],
   "min_quality_bar": "descripción de entregable mínimo aceptable"
 }`
+}
+
+/** Mismo motor de contexto que retos laborales — modo entrevista verbal */
+export const INTERVIEW_QUESTION_GENERATION_SYSTEM = `Eres un entrevistador IA senior de HYRE.
+Generas preguntas de entrevista laboral REALES (verbales), adaptadas al rol, industria y cultura.
+NO generes tareas escritas ni entregables — solo preguntas conversacionales para responder en voz.
+Referencia la simulación laboral del candidato cuando corresponda (simulation_followup).
+Español latinoamericano, tono profesional y empático.`
+
+export function interviewQuestionGenerationPrompt(
+  context: ScenarioContext,
+  questionIndex: number,
+  options?: { difficulty?: string; lastTranscript?: string; suggestedCategory?: string },
+): string {
+  const industryKey = inferIndustryKey(context.industry)
+  const industryFocus = INDUSTRY_TASK_FOCUS[industryKey] ?? INDUSTRY_TASK_FOCUS.default
+  const cultureText = context.culture?.length ? context.culture.join(", ") : "no especificada"
+  const previous = JSON.stringify(context.interview_question_titles ?? [])
+  const difficulty = options?.difficulty ?? "medium"
+  const category = options?.suggestedCategory ?? "behavioral"
+  const lastAnswer = options?.lastTranscript?.trim()
+    ? `\nÚltima respuesta del candidato (adapta la siguiente pregunta):\n${options.lastTranscript.slice(0, 1500)}`
+    : ""
+
+  return `Genera la PREGUNA DE ENTREVISTA #${questionIndex} para entrevista en vivo.
+
+Contexto (mismo del simulador laboral):
+- Rol: ${context.role_title}
+- Empresa: ${context.company_name}
+- Industria: ${context.industry ?? "General"}
+- Perfil: ${context.job_description ?? "Profesional"}
+- Cultura: ${cultureText}
+- Enfoque de industria: ${industryFocus}
+- Preguntas previas: ${previous}
+- Categoría sugerida: ${category}
+- Dificultad: ${difficulty}
+- Tareas de simulación previas: ${JSON.stringify(context.challenge_titles ?? [])}
+${lastAnswer}
+
+JSON (sin markdown):
+{
+  "id": ${questionIndex},
+  "text": "pregunta en 1-3 oraciones, lista para leer en voz alta",
+  "category": "intro|behavioral|technical|situational|culture|simulation_followup|closing",
+  "difficulty": "easy|medium|hard",
+  "focus_area": "tema evaluado",
+  "interviewer_notes": "qué buscar en la respuesta"
+}`
+}
+
+export const INTERVIEW_EVALUATION_SYSTEM = `Eres evaluador senior de entrevistas HYRE (Gemini Pro).
+Analizas respuestas habladas del candidato en tiempo real: comunicación, confianza, relevancia y profundidad.
+Sin sesgos por apariencia. Evidencia en el texto transcrito. Español.`
+
+export function interviewEvaluationPrompt(
+  context: ScenarioContext,
+  question: InterviewQuestion,
+  transcript: string,
+): string {
+  return `Evalúa esta respuesta de entrevista en vivo.
+
+Rol: ${context.role_title} en ${context.company_name} (${context.industry ?? "General"})
+Pregunta (${question.category}, ${question.difficulty}): ${question.text}
+Área de foco: ${question.focus_area}
+
+Transcripción del candidato:
+${transcript}
+
+JSON:
+{
+  "score": 0-100,
+  "communication": 0-100,
+  "confidence": 0-100,
+  "relevance": 0-100,
+  "technical_depth": 0-100,
+  "feedback": "2-3 oraciones directas",
+  "strengths": ["..."],
+  "improvements": ["..."],
+  "passed": true/false
+}
+
+Reglas: passed=false si score<55. Sé exigente pero justo.`
 }
 
 export const OPENING_MESSAGE = (role: string, company: string) =>

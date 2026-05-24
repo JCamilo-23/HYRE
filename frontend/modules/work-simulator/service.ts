@@ -1,22 +1,44 @@
 import type {
   ChallengeEvaluation,
   GenerateChallengeOptions,
+  GenerateInterviewQuestionOptions,
+  InterviewAnswerEvaluation,
+  InterviewDifficulty,
+  InterviewLiveScores,
+  InterviewQuestion,
+  InterviewQuestionCategory,
   ScenarioContext,
   WorkChallenge,
   WorkSimulatorMessage,
   WorkSimulatorSession,
 } from "./types"
 import type { WorkBlock } from "./constants"
-import { TASK_EXAMPLES_BY_ROLE, TASK_EXAMPLES_BY_INDUSTRY } from "./constants"
+import {
+  INTERVIEW_CATEGORY_ROTATION,
+  INTERVIEW_FALLBACK_BY_INDUSTRY,
+  INTERVIEW_MAX_QUESTIONS_DEFAULT,
+  TASK_EXAMPLES_BY_ROLE,
+  TASK_EXAMPLES_BY_INDUSTRY,
+} from "./constants"
 import {
   CHALLENGE_GENERATION_SYSTEM,
+  INTERVIEW_EVALUATION_SYSTEM,
+  INTERVIEW_QUESTION_GENERATION_SYSTEM,
   OPENING_MESSAGE,
   STRICT_EVALUATION_SYSTEM,
   buildSimulatorSystem,
   challengeGenerationPrompt,
+  interviewEvaluationPrompt,
+  interviewQuestionGenerationPrompt,
 } from "./prompts"
-import { geminiChat, geminiGenerateJson, geminiGenerateText } from "@/lib/gemini-server"
+import {
+  geminiChat,
+  geminiGenerateJson,
+  geminiGenerateProJson,
+  geminiGenerateText,
+} from "@/lib/gemini-server"
 import { inferIndustryKey } from "@/lib/match-companies"
+import { publishInterviewEvent } from "@/lib/interview-event-bus"
 
 function addMinutes(iso: string, minutes: number): string {
   return new Date(new Date(iso).getTime() + minutes * 60_000).toISOString()
@@ -275,6 +297,78 @@ export function formatChallengeMessage(challenge: WorkChallenge): string {
   )
 }
 
+function suggestedInterviewCategory(index: number): InterviewQuestionCategory {
+  return INTERVIEW_CATEGORY_ROTATION[(index - 1) % INTERVIEW_CATEGORY_ROTATION.length]
+}
+
+export function getFallbackInterviewQuestion(
+  index: number,
+  context: ScenarioContext,
+  difficulty: InterviewDifficulty = "medium",
+): InterviewQuestion {
+  const industryKey = inferIndustryKey(context.industry)
+  const templates =
+    INTERVIEW_FALLBACK_BY_INDUSTRY[industryKey] ?? INTERVIEW_FALLBACK_BY_INDUSTRY.default
+  const item = templates[(index - 1) % templates.length]
+  return {
+    id: index,
+    text: item.text.replace("TechCorp", context.company_name ?? "la empresa"),
+    category: item.category,
+    difficulty,
+    focus_area: item.focus,
+  }
+}
+
+function mergeInterviewScores(
+  current: InterviewLiveScores | undefined,
+  evaluation: InterviewAnswerEvaluation,
+): InterviewLiveScores {
+  const prev = current ?? {
+    overall: 0,
+    communication: 0,
+    confidence: 0,
+    relevance: 0,
+    technical_depth: 0,
+    questions_answered: 0,
+  }
+  const n = prev.questions_answered + 1
+  const blend = (old: number, next: number) => Math.round((old * prev.questions_answered + next) / n)
+
+  return {
+    overall: blend(prev.overall, evaluation.score),
+    communication: blend(prev.communication, evaluation.communication),
+    confidence: blend(prev.confidence, evaluation.confidence),
+    relevance: blend(prev.relevance, evaluation.relevance),
+    technical_depth: blend(prev.technical_depth, evaluation.technical_depth),
+    questions_answered: n,
+  }
+}
+
+export function createInterviewSessionData(
+  input: Parameters<typeof createSessionData>[0] & { max_questions?: number },
+): WorkSimulatorSession {
+  const session = createSessionData(input)
+  session.scenario_context = {
+    ...session.scenario_context,
+    interview_mode: true,
+    interview_question_index: 0,
+    interview_question_titles: [],
+    current_interview_question: null,
+    interview_transcript_log: [],
+    interview_scores: {
+      overall: 0,
+      communication: 0,
+      confidence: 0,
+      relevance: 0,
+      technical_depth: 0,
+      questions_answered: 0,
+    },
+    interview_max_questions: input.max_questions ?? INTERVIEW_MAX_QUESTIONS_DEFAULT,
+    phase: "entrevista_en_vivo",
+  }
+  return session
+}
+
 export function createSessionData(input: {
   role_title?: string
   company_name?: string
@@ -493,4 +587,151 @@ Reglas: passed=false si score<60. score>=85 solo si es excelente y enviable tal 
       updated_at: new Date().toISOString(),
     },
   }
+}
+
+/** Genera pregunta de entrevista — mismo contexto Gemini que processChallenge */
+export async function processInterviewQuestion(
+  session: WorkSimulatorSession,
+  options: GenerateInterviewQuestionOptions = {},
+): Promise<{ question: InterviewQuestion; session: WorkSimulatorSession }> {
+  const context = { ...session.scenario_context }
+  const maxQ = context.interview_max_questions ?? INTERVIEW_MAX_QUESTIONS_DEFAULT
+  const index = (context.interview_question_index ?? 0) + 1
+
+  if (index > maxQ) {
+    throw new Error("Entrevista completada — no hay más preguntas")
+  }
+
+  const difficulty = options.difficulty ?? "medium"
+  const category = suggestedInterviewCategory(index)
+
+  let question =
+    (await geminiGenerateJson<InterviewQuestion & Record<string, unknown>>(
+      INTERVIEW_QUESTION_GENERATION_SYSTEM,
+      interviewQuestionGenerationPrompt(context, index, {
+        difficulty,
+        lastTranscript: options.last_transcript,
+        suggestedCategory: category,
+      }),
+    )) ?? getFallbackInterviewQuestion(index, context, difficulty)
+
+  const fallback = getFallbackInterviewQuestion(index, context, difficulty)
+  question = {
+    ...fallback,
+    ...question,
+    id: index,
+    text: (question.text ?? fallback.text).trim(),
+    category: (question.category ?? fallback.category) as InterviewQuestionCategory,
+    difficulty: (question.difficulty ?? difficulty) as InterviewDifficulty,
+    focus_area: question.focus_area ?? fallback.focus_area,
+  }
+
+  context.interview_question_index = index
+  context.interview_question_titles = [...(context.interview_question_titles ?? []), question.text.slice(0, 80)]
+  context.current_interview_question = question
+
+  const updated: WorkSimulatorSession = {
+    ...session,
+    scenario_context: context,
+    updated_at: new Date().toISOString(),
+  }
+
+  publishInterviewEvent(session.id, {
+    type: "question",
+    question,
+    progress: { current: index, total: maxQ },
+  })
+
+  return { question, session: updated }
+}
+
+/** Evalúa respuesta hablada con Gemini Pro y actualiza scoring en vivo */
+export async function processInterviewAnswer(
+  session: WorkSimulatorSession,
+  transcript: string,
+): Promise<{
+  evaluation: InterviewAnswerEvaluation
+  scores: InterviewLiveScores
+  session: WorkSimulatorSession
+}> {
+  const context = { ...session.scenario_context }
+  const question = context.current_interview_question
+  if (!question) {
+    throw new Error("No hay pregunta activa en la entrevista")
+  }
+
+  const trimmed = transcript.trim()
+  if (!trimmed) {
+    throw new Error("La transcripción está vacía")
+  }
+
+  publishInterviewEvent(session.id, {
+    type: "transcript",
+    transcript: trimmed,
+    question_id: question.id,
+  })
+
+  publishInterviewEvent(session.id, { type: "analysis_started", question_id: question.id })
+
+  let evaluation =
+    (await geminiGenerateProJson<InterviewAnswerEvaluation & Record<string, unknown>>(
+      INTERVIEW_EVALUATION_SYSTEM,
+      interviewEvaluationPrompt(context, question, trimmed),
+    )) ?? {
+      score: 62,
+      communication: 65,
+      confidence: 60,
+      relevance: 64,
+      technical_depth: 58,
+      feedback:
+        "Respuesta comprensible. Profundiza con ejemplos concretos y métricas en la siguiente pregunta.",
+      strengths: ["Participación activa"],
+      improvements: ["Más detalle y estructura STAR"],
+      passed: true,
+    }
+
+  evaluation = {
+    score: Number(evaluation.score) || 62,
+    communication: Number(evaluation.communication) || 65,
+    confidence: Number(evaluation.confidence) || 60,
+    relevance: Number(evaluation.relevance) || 64,
+    technical_depth: Number(evaluation.technical_depth) || 58,
+    feedback: evaluation.feedback ?? "",
+    strengths: evaluation.strengths ?? [],
+    improvements: evaluation.improvements ?? [],
+    passed: evaluation.passed ?? (Number(evaluation.score) || 0) >= 55,
+  }
+
+  const scores = mergeInterviewScores(context.interview_scores, evaluation)
+  context.interview_scores = scores
+  context.interview_transcript_log = [
+    ...(context.interview_transcript_log ?? []),
+    { question_id: question.id, transcript: trimmed, at: new Date().toISOString() },
+  ]
+  context.current_interview_question = null
+
+  const messages: WorkSimulatorMessage[] = [
+    ...session.messages,
+    { role: "user", content: `[Entrevista Q${question.id}] ${trimmed}` },
+    {
+      role: "assistant",
+      content: `**Análisis IA** · ${evaluation.score}/100\n${evaluation.feedback}`,
+    },
+  ]
+
+  const updated: WorkSimulatorSession = {
+    ...session,
+    scenario_context: context,
+    messages,
+    updated_at: new Date().toISOString(),
+  }
+
+  publishInterviewEvent(session.id, {
+    type: "analysis",
+    evaluation,
+    scores,
+    question_id: question.id,
+  })
+
+  return { evaluation, scores, session: updated }
 }

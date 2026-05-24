@@ -109,3 +109,44 @@ export async function geminiGenerateJson<T extends Record<string, unknown>>(
     return null
   }
 }
+
+/** Gemini Pro — análisis de entrevista en tiempo real */
+export async function geminiGenerateProJson<T extends Record<string, unknown>>(
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<T | null> {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey) return null
+
+  const proModels = [
+    process.env.GEMINI_PRO_MODEL ?? "gemini-2.5-pro",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    ...getGeminiModels(),
+  ]
+  const uniquePro = [...new Set(proModels)]
+
+  for (const model of uniquePro) {
+    const text = await geminiRequest(apiKey, model, {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `${userPrompt}\n\nResponde ÚNICAMENTE con JSON válido, sin markdown.`,
+            },
+          ],
+        },
+      ],
+      generationConfig: { temperature: 0.35, maxOutputTokens: 2048 },
+    })
+    if (!text) continue
+    try {
+      return JSON.parse(stripJsonFences(text)) as T
+    } catch {
+      continue
+    }
+  }
+  return geminiGenerateJson<T>(systemPrompt, userPrompt)
+}
