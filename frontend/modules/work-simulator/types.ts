@@ -1,10 +1,22 @@
+export interface ScenarioContext {
+  role_title?: string
+  company_name?: string
+  job_description?: string
+  requirements?: string[]
+  phase?: string
+  challenges_completed?: number
+  challenge_titles?: string[]
+  current_challenge?: WorkChallenge
+  job_id?: string
+}
+
 export interface WorkSimulatorSession {
   id: string
   user_id: string
   job_id: string | null
   role_title: string
   company_name: string
-  scenario_context: Record<string, unknown>
+  scenario_context: ScenarioContext
   messages: WorkSimulatorMessage[]
   status: "active" | "completed" | "archived"
   created_at: string

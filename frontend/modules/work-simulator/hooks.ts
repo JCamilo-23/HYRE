@@ -24,6 +24,7 @@ export function useWorkSimulator() {
         const created = await createWorkSimulatorSession(input)
         setSession(created)
         setMessages(created.messages ?? [])
+        setCurrentChallenge(created.scenario_context?.current_challenge ?? null)
         return created
       } catch (e) {
         const msg = e instanceof Error ? e.message : "No se pudo iniciar la simulación"
@@ -41,18 +42,15 @@ export function useWorkSimulator() {
       if (!session) return
       setLoading(true)
       setError(null)
-      const optimistic: WorkSimulatorMessage[] = [
-        ...messages,
-        { role: "user", content: text },
-      ]
-      setMessages(optimistic)
+      const previousMessages = messages
+      setMessages((m) => [...m, { role: "user", content: text }])
       try {
         const res = await sendWorkSimulatorMessage(session.id, text)
         setMessages(res.messages)
         setSession((s) => (s ? { ...s, messages: res.messages } : s))
         return res.reply
       } catch (e) {
-        setMessages(messages)
+        setMessages(previousMessages)
         const msg = e instanceof Error ? e.message : "Error al enviar mensaje"
         setError(msg)
         throw e
@@ -64,13 +62,17 @@ export function useWorkSimulator() {
   )
 
   const requestChallenge = useCallback(async () => {
-    if (!session) return
+    if (!session) {
+      setError("Espera a que cargue la sesión...")
+      return
+    }
     setLoading(true)
     setError(null)
     try {
       const res = await generateWorkChallenge(session.id)
+      setSession(res.session)
+      setMessages(res.session.messages)
       setCurrentChallenge(res.challenge)
-      setMessages((m) => [...m, { role: "assistant", content: res.message }])
       return res.challenge
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo generar el reto"
@@ -88,8 +90,9 @@ export function useWorkSimulator() {
       setError(null)
       try {
         const res = await evaluateWorkChallengeResponse(session.id, response)
+        setSession(res.session)
+        setMessages(res.session.messages)
         setCurrentChallenge(null)
-        setMessages((m) => [...m, { role: "assistant", content: res.message }])
         return res.evaluation
       } catch (e) {
         const msg = e instanceof Error ? e.message : "No se pudo evaluar la respuesta"

@@ -80,8 +80,8 @@ export function WorkSimulatorChat({
           type="button"
           size="sm"
           variant="outline"
-          disabled={loading || !!currentChallenge}
-          onClick={() => requestChallenge()}
+          disabled={loading || !!currentChallenge || !session}
+          onClick={() => void requestChallenge()}
           className="border-[#7C3AED] text-[#C4B5FD] hover:bg-[#7C3AED]/20"
           aria-label="Generar nuevo reto laboral"
         >
