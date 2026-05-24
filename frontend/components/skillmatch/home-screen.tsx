@@ -1,58 +1,26 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { 
-  Bell, 
-  Sparkles, 
-  Target, 
-  Video, 
-  MessageSquare, 
+import {
+  Sparkles,
+  Target,
+  Video,
   ChevronRight,
   Zap,
   Trophy,
   TrendingUp,
 } from "lucide-react"
+import { useEffect } from "react"
 import { Screen, UserData } from "@/lib/hyre-types"
+import { useNovaStore } from "@/store/nova-store"
+import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
+import { useTaskNotificationsStore } from "@/store/task-notifications-store"
+import { WORK_DAY_NOTIFICATION_SLOTS } from "@/modules/work-simulator/constants"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
   userData: UserData
 }
-
-const quickCards = [
-  {
-    id: "matches",
-    title: "3 matches nuevos",
-    subtitle: "Empresas te esperan",
-    icon: Target,
-    color: "#7C3AED",
-    screen: "match" as Screen,
-  },
-  {
-    id: "simulation",
-    title: "Simulacion activa",
-    subtitle: "2 retos pendientes",
-    icon: Sparkles,
-    color: "#06B6D4",
-    screen: "simulation" as Screen,
-  },
-  {
-    id: "interview",
-    title: "Entrevista lista",
-    subtitle: "TechCorp Colombia",
-    icon: Video,
-    color: "#10B981",
-    screen: "interview" as Screen,
-  },
-  {
-    id: "mentor",
-    title: "Consejo de Nova",
-    subtitle: "Tu mentor IA",
-    icon: MessageSquare,
-    color: "#F59E0B",
-    screen: "mentor" as Screen,
-  },
-]
 
 const recommendedCompanies = [
   {
@@ -84,17 +52,26 @@ const recommendedCompanies = [
   },
 ]
 
-const recentActivity = [
-  { id: 1, action: "Completaste simulacion", company: "TechCorp", xp: "+500 XP", time: "Hace 2h" },
-  { id: 2, action: "Nuevo badge", company: "Clear Communicator", xp: "+100 XP", time: "Hace 5h" },
-  { id: 3, action: "Match con empresa", company: "DesignLab", xp: "+50 XP", time: "Ayer" },
-]
-
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
+  const openNova = useNovaStore((s) => s.open)
+  const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
   const currentHour = new Date().getHours()
+
+  useEffect(() => {
+    const now = new Date()
+    const upcoming = WORK_DAY_NOTIFICATION_SLOTS.filter((slot) => {
+      const slotDate = new Date()
+      slotDate.setHours(slot.hour, slot.minute, 0, 0)
+      return slotDate.getTime() > now.getTime()
+    }).map((slot) => ({
+      id: `upcoming-${slot.hour}-${slot.minute}`,
+      simTimeLabel: slot.simTimeLabel,
+      label: slot.label,
+    }))
+    syncUpcomingSlots(upcoming)
+  }, [syncUpcomingSlots])
+
   const greeting = currentHour < 12 ? "Buenos dias" : currentHour < 18 ? "Buenas tardes" : "Buenas noches"
-  
-  // Obtener el primer nombre del usuario
   const firstName = userData.name ? userData.name.split(" ")[0] : "Usuario"
 
   return (
@@ -107,16 +84,14 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
             <h1 className="text-2xl font-semibold text-[#F1F5F9]">{firstName}</h1>
           </div>
           <div className="flex items-center gap-3">
-            {/* XP indicator */}
             <div className="flex items-center gap-2 px-3 py-1.5 glass rounded-full">
               <Zap className="w-4 h-4 text-[#F59E0B]" />
               <span className="text-[#F1F5F9] text-sm font-medium">2,450 XP</span>
             </div>
-            {/* Notification bell */}
-            <button className="relative w-10 h-10 glass rounded-full flex items-center justify-center">
-              <Bell className="w-5 h-5 text-[#F1F5F9]" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#EF4444] rounded-full" />
-            </button>
+            <TaskNotificationBell
+              variant="compact"
+              onNavigateToSimulator={() => onNavigate("simulation")}
+            />
           </div>
         </div>
 
@@ -140,40 +115,11 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Quick action cards - horizontal scroll */}
-      <div className="px-6 mb-8">
-        <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Resumen rapido</h2>
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-6 px-6 scrollbar-hide">
-          {quickCards.map((card, index) => {
-            const Icon = card.icon
-            return (
-              <motion.button
-                key={card.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                onClick={() => onNavigate(card.screen)}
-                className="flex-shrink-0 w-40 p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
-              >
-                <div 
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                  style={{ backgroundColor: `${card.color}20` }}
-                >
-                  <Icon className="w-5 h-5" style={{ color: card.color }} />
-                </div>
-                <p className="text-[#F1F5F9] font-medium text-sm mb-1">{card.title}</p>
-                <p className="text-[#94A3B8] text-xs">{card.subtitle}</p>
-              </motion.button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Recommended companies */}
       <div className="px-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#F1F5F9]">Matches perfectos para ti</h2>
-          <button 
+          <button
             onClick={() => onNavigate("match")}
             className="text-[#7C3AED] text-sm font-medium flex items-center gap-1"
           >
@@ -187,11 +133,11 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               key={company.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + index * 0.1 }}
+              transition={{ delay: 0.1 + index * 0.1 }}
               onClick={() => onNavigate("match")}
               className="w-full p-4 glass rounded-2xl flex items-center gap-4 text-left hover:bg-white/10 transition-colors"
             >
-              <div 
+              <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-[#F1F5F9]"
                 style={{ backgroundColor: company.color }}
               >
@@ -205,7 +151,7 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
                 <p className="text-[#94A3B8] text-sm">{company.vacancy}</p>
               </div>
               <div className="flex flex-col items-end">
-                <span 
+                <span
                   className="text-lg font-semibold"
                   style={{ color: company.match >= 90 ? "#10B981" : "#7C3AED" }}
                 >
@@ -218,60 +164,66 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Recent activity */}
+      {/* Quick actions */}
       <div className="px-6 mb-8">
-        <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Actividad reciente</h2>
-        <div className="glass rounded-2xl overflow-hidden">
-          {recentActivity.map((activity, index) => (
-            <div
-              key={activity.id}
-              className={`p-4 flex items-center gap-3 ${
-                index !== recentActivity.length - 1 ? "border-b border-[rgba(255,255,255,0.05)]" : ""
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#7C3AED]/20 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-[#7C3AED]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[#F1F5F9] text-sm font-medium">{activity.action}</p>
-                <p className="text-[#94A3B8] text-xs">{activity.company}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[#10B981] text-sm font-medium">{activity.xp}</p>
-                <p className="text-[#475569] text-xs">{activity.time}</p>
-              </div>
+        <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Acciones rapidas</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => onNavigate("simulation")}
+            className="p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#06B6D4]/20 flex items-center justify-center mb-3">
+              <Sparkles className="w-5 h-5 text-[#06B6D4]" />
             </div>
-          ))}
-        </div>
-      </div>
+            <p className="text-[#F1F5F9] font-medium text-sm">Simulacion</p>
+            <p className="text-[#94A3B8] text-xs">2 retos pendientes</p>
+          </motion.button>
 
-      {/* Mentor AI tip */}
-      <div className="px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="p-4 rounded-2xl bg-gradient-to-br from-[#7C3AED]/20 to-[#06B6D4]/10 border border-[#7C3AED]/20"
-        >
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-[#F1F5F9]" />
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            onClick={() => onNavigate("interview")}
+            className="p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#10B981]/20 flex items-center justify-center mb-3">
+              <Video className="w-5 h-5 text-[#10B981]" />
             </div>
-            <div className="flex-1">
-              <p className="text-[#F1F5F9] font-medium mb-1">Consejo de Nova</p>
-              <p className="text-[#94A3B8] text-sm leading-relaxed">
-                Mejora tus habilidades en React para acceder a 12 empresas mas que buscan ese perfil.
-              </p>
-              <button 
-                onClick={() => onNavigate("mentor")}
-                className="text-[#7C3AED] text-sm font-medium mt-2 flex items-center gap-1"
-              >
-                Hablar con Nova
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            <p className="text-[#F1F5F9] font-medium text-sm">Entrevista</p>
+            <p className="text-[#94A3B8] text-xs">TechCorp Colombia</p>
+          </motion.button>
+
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            onClick={() => onNavigate("match")}
+            className="p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#7C3AED]/20 flex items-center justify-center mb-3">
+              <Target className="w-5 h-5 text-[#7C3AED]" />
             </div>
-          </div>
-        </motion.div>
+            <p className="text-[#F1F5F9] font-medium text-sm">Matches</p>
+            <p className="text-[#94A3B8] text-xs">3 nuevos</p>
+          </motion.button>
+
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            onClick={() => onNavigate("report")}
+            className="p-4 glass rounded-2xl text-left hover:bg-white/10 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/20 flex items-center justify-center mb-3">
+              <TrendingUp className="w-5 h-5 text-[#F59E0B]" />
+            </div>
+            <p className="text-[#F1F5F9] font-medium text-sm">Mi reporte</p>
+            <p className="text-[#94A3B8] text-xs">Score: 84</p>
+          </motion.button>
+        </div>
       </div>
     </div>
   )

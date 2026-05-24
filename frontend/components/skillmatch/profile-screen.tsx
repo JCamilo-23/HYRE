@@ -1,15 +1,18 @@
 "use client"
 
-import { motion } from "framer-motion"
-import { 
-  Settings, 
-  Edit3, 
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Settings,
+  Edit3,
   Video,
   ChevronRight,
+  ChevronDown,
   Zap,
   Trophy,
   Target,
-  Briefcase
+  Briefcase,
+  Clock,
 } from "lucide-react"
 import { Screen, UserData } from "@/lib/hyre-types"
 
@@ -34,25 +37,25 @@ const badges = [
   { id: 5, name: "Simulation Master", icon: "🏆", company: "TechCorp" },
 ]
 
-const history = [
-  { id: 1, company: "TechCorp", role: "Frontend Jr", score: 87, date: "Hoy", type: "simulation" },
-  { id: 2, company: "TechCorp", role: "Frontend Jr", score: 84, date: "Hoy", type: "interview" },
-  { id: 3, company: "DesignLab", role: "UX Designer", score: null, date: "En progreso", type: "simulation" },
+const participated = [
+  { id: 1, company: "TechCorp", role: "Desarrollador Frontend Jr", score: 87, type: "simulation", logo: "T", color: "#7C3AED" },
+  { id: 2, company: "TechCorp", role: "Desarrollador Frontend Jr", score: 84, type: "interview", logo: "T", color: "#7C3AED" },
+]
+
+const waiting = [
+  { id: 3, company: "DesignLab", role: "UX Designer", daysAgo: 2, logo: "D", color: "#06B6D4" },
 ]
 
 export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
+  const [historialOpen, setHistorialOpen] = useState(false)
   const xp = 2450
   const level = 3
   const nextLevelXp = 3500
 
-  // Obtener iniciales del nombre
   const getInitials = (name: string) => {
     if (!name) return "U"
     const parts = name.split(" ")
-    if (parts.length >= 2) {
-      return parts[0][0] + parts[1][0]
-    }
-    return name[0].toUpperCase()
+    return parts.length >= 2 ? parts[0][0] + parts[1][0] : name[0].toUpperCase()
   }
 
   const initials = getInitials(userData.name)
@@ -89,7 +92,6 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
             </div>
           </div>
 
-          {/* Level and XP */}
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-2 px-3 py-1.5 glass rounded-full">
               <Trophy className="w-4 h-4 text-[#F59E0B]" />
@@ -101,7 +103,6 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
             </div>
           </div>
 
-          {/* XP progress */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[#94A3B8] text-xs">Progreso al nivel {level + 1}</span>
@@ -133,7 +134,7 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </button>
       </div>
 
-      {/* Skills radar */}
+      {/* Skills */}
       <div className="px-6 mb-6">
         <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Habilidades</h2>
         <div className="glass rounded-2xl p-4">
@@ -159,7 +160,7 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </div>
       </div>
 
-      {/* Badges collection */}
+      {/* Badges */}
       <div className="px-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#F1F5F9]">Badges</h2>
@@ -167,10 +168,7 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {badges.map((badge) => (
-            <div
-              key={badge.id}
-              className="flex-shrink-0 w-24 glass rounded-xl p-3 text-center"
-            >
+            <div key={badge.id} className="flex-shrink-0 w-24 glass rounded-xl p-3 text-center">
               <div className="text-2xl mb-2">{badge.icon}</div>
               <p className="text-[#F1F5F9] text-xs font-medium mb-0.5">{badge.name}</p>
               <p className="text-[#475569] text-xs">{badge.company}</p>
@@ -179,41 +177,89 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </div>
       </div>
 
-      {/* History */}
+      {/* Historial — collapsible */}
       <div className="px-6 mb-6">
-        <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Historial</h2>
-        <div className="glass rounded-2xl overflow-hidden">
-          {history.map((item, index) => (
-            <div
-              key={item.id}
-              className={`p-4 flex items-center gap-3 ${
-                index !== history.length - 1 ? "border-b border-[rgba(255,255,255,0.05)]" : ""
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                item.type === "simulation" ? "bg-[#7C3AED]/20" : "bg-[#06B6D4]/20"
-              }`}>
-                {item.type === "simulation" ? (
-                  <Target className="w-5 h-5 text-[#7C3AED]" />
-                ) : (
-                  <Briefcase className="w-5 h-5 text-[#06B6D4]" />
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="text-[#F1F5F9] text-sm font-medium">{item.company}</p>
-                <p className="text-[#94A3B8] text-xs">{item.role}</p>
-              </div>
-              <div className="text-right">
-                {item.score ? (
-                  <p className="text-[#10B981] text-sm font-medium">{item.score}</p>
-                ) : (
-                  <p className="text-[#F59E0B] text-xs">{item.date}</p>
-                )}
-                <p className="text-[#475569] text-xs">{item.type === "simulation" ? "Simulacion" : "Entrevista"}</p>
-              </div>
+        <button
+          onClick={() => setHistorialOpen(!historialOpen)}
+          className="w-full p-4 glass rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#7C3AED]/20 flex items-center justify-center">
+              <Briefcase className="w-5 h-5 text-[#7C3AED]" />
             </div>
-          ))}
-        </div>
+            <div className="text-left">
+              <p className="text-[#F1F5F9] font-medium">Historial</p>
+              <p className="text-[#94A3B8] text-xs">
+                {participated.length} participaciones · {waiting.length} esperando
+              </p>
+            </div>
+          </div>
+          <motion.div animate={{ rotate: historialOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown className="w-5 h-5 text-[#94A3B8]" />
+          </motion.div>
+        </button>
+
+        <AnimatePresence>
+          {historialOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-3 space-y-3">
+                {/* Participaciones */}
+                <p className="text-[#475569] text-xs font-medium uppercase tracking-wider px-1">
+                  Empresas donde participé
+                </p>
+                {participated.map((item) => (
+                  <div key={item.id} className="glass rounded-xl p-4 flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-[#F1F5F9]"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      {item.logo}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[#F1F5F9] text-sm font-medium">{item.company}</p>
+                      <p className="text-[#94A3B8] text-xs">{item.role}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[#10B981] text-sm font-medium">{item.score}/100</p>
+                      <p className="text-[#475569] text-xs">
+                        {item.type === "simulation" ? "Simulacion" : "Entrevista"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Esperando respuesta */}
+                <p className="text-[#475569] text-xs font-medium uppercase tracking-wider px-1 pt-2">
+                  Esperando respuesta
+                </p>
+                {waiting.map((item) => (
+                  <div key={item.id} className="glass rounded-xl p-4 flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-[#F1F5F9]"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      {item.logo}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[#F1F5F9] text-sm font-medium">{item.company}</p>
+                      <p className="text-[#94A3B8] text-xs">{item.role}</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#F59E0B]">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-xs">Hace {item.daysAgo}d</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Stats */}

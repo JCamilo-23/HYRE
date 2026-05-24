@@ -179,6 +179,15 @@
   background: rgba(139, 92, 246, 0.5);
 }
 
+/* Nova floating assistant — por encima de bottom nav (z-50) */
+.nova-layer-bubble {
+  z-index: 60;
+}
+
+.nova-layer-panel {
+  z-index: 70;
+}
+
 /* Safe area for mobile */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 20px);

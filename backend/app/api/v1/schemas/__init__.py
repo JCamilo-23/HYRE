@@ -72,3 +72,40 @@ class CopilotRequest(BaseModel):
 class CopilotResponse(BaseModel):
     session_id: str
     reply: str
+
+
+class WorkSimulatorSessionCreate(BaseModel):
+    job_id: Optional[UUID4] = None
+    role_title: str = "Profesional"
+    company_name: str = "Empresa"
+    scenario_context: Optional[dict] = None
+
+
+class WorkSimulatorSessionResponse(BaseModel):
+    id: UUID4
+    user_id: UUID4
+    job_id: Optional[UUID4] = None
+    role_title: str
+    company_name: str
+    scenario_context: dict = {}
+    messages: list[dict] = []
+    status: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WorkSimulatorMessageRequest(BaseModel):
+    message: str
+
+
+class WorkSimulatorMessageResponse(BaseModel):
+    session_id: str
+    reply: str
+    messages: list[dict]
+
+
+class WorkSimulatorEvaluateRequest(BaseModel):
+    response: str

@@ -25,10 +25,9 @@ export function BottomNav({ currentScreen, onNavigate }: BottomNavProps) {
           <div className="flex items-center justify-around">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = currentScreen === item.id || 
-                (item.id === "simulation" && currentScreen === "simulation") ||
-                (item.id === "interview" && ["interview", "report"].includes(currentScreen)) ||
-                (item.id === "home" && currentScreen === "mentor")
+              const isActive =
+                currentScreen === item.id ||
+                (item.id === "interview" && ["interview", "report"].includes(currentScreen))
               
               return (
                 <button
