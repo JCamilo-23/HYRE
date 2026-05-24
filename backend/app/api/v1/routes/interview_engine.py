@@ -159,8 +159,8 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
         await ws_manager.send_json(
             websocket,
             {
-                "type": "interviewer_question",
-                "question": "Preséntate brevemente y describe tu experiencia más relevante para este puesto.",
+                "type": "error",
+                "message": "GEMINI_API_KEY no configurada. Añádela en backend/.env y reinicia el servidor.",
             },
         )
 

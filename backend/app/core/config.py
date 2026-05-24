@@ -21,8 +21,12 @@ class Settings(BaseSettings):
 
     # Google Gemini (simulador laboral, copilot, visión, interview engine)
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
-    GEMINI_PRO_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_PRO_MODEL: str = "gemini-2.5-flash"
+    GEMINI_FALLBACK_MODELS: list[str] = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ]
 
     # Stripe
     STRIPE_SECRET_KEY: str = ""
