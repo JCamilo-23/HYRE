@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Home, Target, Sparkles, Video, User, Building2, BarChart3, UserCheck } from "lucide-react"
+import { Home, Target, Sparkles, Video, User, Building2, ClipboardList } from "lucide-react"
 import { Screen } from "@/lib/hyre-types"
 
 interface BottomNavProps {
@@ -20,8 +20,7 @@ const candidateNavItems = [
 
 const employerNavItems = [
   { id: "employerHome" as Screen, label: "Inicio", icon: Building2 },
-  { id: "employerAccept" as Screen, label: "Aceptar", icon: UserCheck },
-  { id: "employerReports" as Screen, label: "Reportes", icon: BarChart3 },
+  { id: "employerCandidates" as Screen, label: "Reportes", icon: ClipboardList },
   { id: "profile" as Screen, label: "Empresa", icon: User },
 ]
 
