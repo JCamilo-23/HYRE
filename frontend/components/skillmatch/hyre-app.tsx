@@ -138,7 +138,11 @@ export function HyreApp() {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       {showCandidateNova && (
-        <CandidateNova showBottomNav={showBottomNav} userName={userData.name} />
+        <CandidateNova
+          showBottomNav={showBottomNav}
+          userName={userData.name}
+          onNavigateToNova={() => setCurrentScreen("nova")}
+        />
       )}
 
       {/* Background gradient effects */}

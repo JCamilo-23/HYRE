@@ -17,46 +17,34 @@ import { useNovaStore } from "@/store/nova-store"
 import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
 import { useTaskNotificationsStore } from "@/store/task-notifications-store"
 import { WORK_DAY_NOTIFICATION_SLOTS } from "@/modules/work-simulator/constants"
+import { useCandidateStats } from "@/modules/stats/hooks"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
   userData: UserData
 }
 
-const recommendedCompanies = [
-  {
-    id: 1,
-    name: "TechCorp",
-    industry: "Tecnologia",
-    match: 94,
-    vacancy: "Desarrollador Frontend",
-    logo: "T",
-    color: "#7C3AED",
-  },
-  {
-    id: 2,
-    name: "DesignLab",
-    industry: "Diseno",
-    match: 89,
-    vacancy: "UX Designer",
-    logo: "D",
-    color: "#06B6D4",
-  },
-  {
-    id: 3,
-    name: "StartupXYZ",
-    industry: "Fintech",
-    match: 87,
-    vacancy: "Product Manager",
-    logo: "S",
-    color: "#10B981",
-  },
-]
+const LEVEL_NAMES: Record<number, string> = {
+  1: "Newcomer",
+  2: "Explorer",
+  3: "Rising Star",
+  4: "Pro",
+  5: "Expert",
+  6: "Master",
+  7: "Legend",
+}
+
+const JOB_COLORS = ["#7C3AED", "#06B6D4", "#10B981", "#F59E0B", "#EF4444"]
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse bg-white/10 rounded ${className}`} />
+}
 
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
   const openNova = useNovaStore((s) => s.open)
   const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
   const currentHour = new Date().getHours()
+  const { data: stats, isLoading } = useCandidateStats()
 
   useEffect(() => {
     const now = new Date()
@@ -75,6 +63,16 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
   const greeting = currentHour < 12 ? "Buenos dias" : currentHour < 18 ? "Buenas tardes" : "Buenas noches"
   const firstName = userData.name ? userData.name.split(" ")[0] : "Usuario"
 
+  const xp = stats?.xp ?? 0
+  const level = stats?.level ?? 1
+  const levelName = LEVEL_NAMES[level] ?? "Newcomer"
+  const xpNext = stats?.xp_next_level ?? 500
+  const xpPct = stats?.xp_progress_pct ?? 0
+  const novaCvScore = stats?.nova_cv_score
+  const matchesNew = stats?.matches_new ?? 0
+  const simulationsActive = stats?.simulations_active ?? 0
+  const topJobs = stats?.top_jobs ?? []
+
   return (
     <div className="min-h-screen pb-24 safe-area-top">
       {/* Header */}
@@ -87,7 +85,13 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 glass rounded-full">
               <Zap className="w-4 h-4 text-[#F59E0B]" />
-              <span className="text-[#F1F5F9] text-sm font-medium">2,450 XP</span>
+              {isLoading ? (
+                <Skeleton className="w-14 h-4" />
+              ) : (
+                <span className="text-[#F1F5F9] text-sm font-medium">
+                  {xp.toLocaleString("es-CO")} XP
+                </span>
+              )}
             </div>
             <TaskNotificationBell
               variant="compact"
@@ -101,22 +105,36 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Trophy className="w-5 h-5 text-[#F59E0B]" />
-              <span className="text-[#F1F5F9] font-medium">Nivel 3 - Rising Star</span>
+              {isLoading ? (
+                <Skeleton className="w-36 h-5" />
+              ) : (
+                <span className="text-[#F1F5F9] font-medium">Nivel {level} — {levelName}</span>
+              )}
             </div>
-            <span className="text-[#94A3B8] text-sm">2,450 / 3,500 XP</span>
+            {isLoading ? (
+              <Skeleton className="w-24 h-4" />
+            ) : (
+              <span className="text-[#94A3B8] text-sm">
+                {xp.toLocaleString("es-CO")} / {xpNext.toLocaleString("es-CO")} XP
+              </span>
+            )}
           </div>
           <div className="h-2 bg-[#1A1A2E] rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: "70%" }}
-              transition={{ duration: 1, delay: 0.3 }}
-              className="h-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] rounded-full"
-            />
+            {isLoading ? (
+              <div className="h-full w-1/3 animate-pulse bg-white/10 rounded-full" />
+            ) : (
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${xpPct}%` }}
+                transition={{ duration: 1, delay: 0.3 }}
+                className="h-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] rounded-full"
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {/* Recommended companies */}
+      {/* Recommended jobs */}
       <div className="px-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-[#F1F5F9]">Matches perfectos para ti</h2>
@@ -129,39 +147,66 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
           </button>
         </div>
         <div className="flex flex-col gap-3">
-          {recommendedCompanies.map((company, index) => (
-            <motion.button
-              key={company.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + index * 0.1 }}
-              onClick={() => onNavigate("match")}
-              className="w-full p-4 glass rounded-2xl flex items-center gap-4 text-left hover:bg-white/10 transition-colors"
-            >
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-[#F1F5F9]"
-                style={{ backgroundColor: company.color }}
-              >
-                {company.logo}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-[#F1F5F9] font-medium">{company.name}</p>
-                  <span className="text-[#94A3B8] text-xs">{company.industry}</span>
+          {isLoading ? (
+            [0, 1, 2].map((i) => (
+              <div key={i} className="p-4 glass rounded-2xl flex items-center gap-4">
+                <Skeleton className="w-12 h-12 rounded-xl" />
+                <div className="flex-1 flex flex-col gap-2">
+                  <Skeleton className="w-32 h-4" />
+                  <Skeleton className="w-24 h-3" />
                 </div>
-                <p className="text-[#94A3B8] text-sm">{company.vacancy}</p>
+                <Skeleton className="w-10 h-8" />
               </div>
-              <div className="flex flex-col items-end">
-                <span
-                  className="text-lg font-semibold"
-                  style={{ color: company.match >= 90 ? "#10B981" : "#7C3AED" }}
+            ))
+          ) : topJobs.length > 0 ? (
+            topJobs.map((job, index) => (
+              <motion.button
+                key={job.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + index * 0.1 }}
+                onClick={() => onNavigate("match")}
+                className="w-full p-4 glass rounded-2xl flex items-center gap-4 text-left hover:bg-white/10 transition-colors"
+              >
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold text-[#F1F5F9]"
+                  style={{ backgroundColor: JOB_COLORS[index % JOB_COLORS.length] }}
                 >
-                  {company.match}%
-                </span>
-                <span className="text-[#475569] text-xs">match</span>
-              </div>
-            </motion.button>
-          ))}
+                  {job.company_name ? job.company_name[0].toUpperCase() : "?"}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-[#F1F5F9] font-medium">{job.company_name || "Empresa"}</p>
+                    {job.industry && (
+                      <span className="text-[#94A3B8] text-xs">{job.industry}</span>
+                    )}
+                  </div>
+                  <p className="text-[#94A3B8] text-sm">{job.title}</p>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span
+                    className="text-lg font-semibold"
+                    style={{ color: job.match_score >= 90 ? "#10B981" : "#7C3AED" }}
+                  >
+                    {job.match_score}%
+                  </span>
+                  <span className="text-[#475569] text-xs">match</span>
+                </div>
+              </motion.button>
+            ))
+          ) : (
+            <div className="p-6 glass rounded-2xl text-center">
+              <p className="text-[#94A3B8] text-sm">
+                Completa tu perfil para ver matches personalizados
+              </p>
+              <button
+                onClick={() => onNavigate("profile")}
+                className="text-[#7C3AED] text-sm font-medium mt-2"
+              >
+                Ir a perfil
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -180,7 +225,13 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <Sparkles className="w-5 h-5 text-[#06B6D4]" />
             </div>
             <p className="text-[#F1F5F9] font-medium text-sm">Simulacion</p>
-            <p className="text-[#94A3B8] text-xs">2 retos pendientes</p>
+            {isLoading ? (
+              <Skeleton className="w-24 h-3 mt-1" />
+            ) : (
+              <p className="text-[#94A3B8] text-xs">
+                {simulationsActive > 0 ? `${simulationsActive} activo${simulationsActive !== 1 ? "s" : ""}` : "Empieza ahora"}
+              </p>
+            )}
           </motion.button>
 
           <motion.button
@@ -194,7 +245,7 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <Video className="w-5 h-5 text-[#10B981]" />
             </div>
             <p className="text-[#F1F5F9] font-medium text-sm">Entrevista</p>
-            <p className="text-[#94A3B8] text-xs">TechCorp Colombia</p>
+            <p className="text-[#94A3B8] text-xs">Practica con IA</p>
           </motion.button>
 
           <motion.button
@@ -208,7 +259,13 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <Target className="w-5 h-5 text-[#7C3AED]" />
             </div>
             <p className="text-[#F1F5F9] font-medium text-sm">Matches</p>
-            <p className="text-[#94A3B8] text-xs">3 nuevos</p>
+            {isLoading ? (
+              <Skeleton className="w-16 h-3 mt-1" />
+            ) : (
+              <p className="text-[#94A3B8] text-xs">
+                {matchesNew > 0 ? `${matchesNew} nuevo${matchesNew !== 1 ? "s" : ""}` : "Ver todos"}
+              </p>
+            )}
           </motion.button>
 
           <motion.button
@@ -222,7 +279,13 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <TrendingUp className="w-5 h-5 text-[#F59E0B]" />
             </div>
             <p className="text-[#F1F5F9] font-medium text-sm">Mi reporte</p>
-            <p className="text-[#94A3B8] text-xs">Score: 84</p>
+            {isLoading ? (
+              <Skeleton className="w-16 h-3 mt-1" />
+            ) : (
+              <p className="text-[#94A3B8] text-xs">
+                {novaCvScore !== null && novaCvScore !== undefined ? `Score: ${novaCvScore}` : "Sin analisis aun"}
+              </p>
+            )}
           </motion.button>
         </div>
       </div>
@@ -242,7 +305,7 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
           </div>
           <div className="flex-1">
             <p className="text-[#F1F5F9] font-semibold text-sm">Nova CV Intelligence</p>
-            <p className="text-[#94A3B8] text-xs">Analiza tu CV con IA · Puntaje ATS, técnico y recruiter</p>
+            <p className="text-[#94A3B8] text-xs">Analiza tu CV con IA · Puntaje ATS, tecnico y recruiter</p>
           </div>
           <ChevronRight className="w-4 h-4 text-[#7C3AED]" />
         </motion.button>

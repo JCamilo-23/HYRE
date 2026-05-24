@@ -7,10 +7,11 @@ import { useNovaStore } from "@/store/nova-store"
 interface CandidateNovaProps {
   showBottomNav: boolean
   userName: string
+  onNavigateToNova?: () => void
 }
 
 /** Nova solo para candidatos — se monta dentro de HyreApp, no en el layout global */
-export function CandidateNova({ showBottomNav, userName }: CandidateNovaProps) {
+export function CandidateNova({ showBottomNav, userName, onNavigateToNova }: CandidateNovaProps) {
   const { setVisible, setHasBottomNav, setUserName, close } = useNovaStore()
 
   useEffect(() => {
@@ -29,5 +30,5 @@ export function CandidateNova({ showBottomNav, userName }: CandidateNovaProps) {
     if (userName) setUserName(userName)
   }, [userName, setUserName])
 
-  return <NovaWidget />
+  return <NovaWidget onNavigateToNova={onNavigateToNova} />
 }

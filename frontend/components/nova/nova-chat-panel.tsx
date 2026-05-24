@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils"
 interface NovaChatPanelProps {
   onClose: () => void
   className?: string
+  hideHeader?: boolean
 }
 
-export function NovaChatPanel({ onClose, className }: NovaChatPanelProps) {
+export function NovaChatPanel({ onClose, className, hideHeader }: NovaChatPanelProps) {
   const { messages, isTyping, sendMessage } = useNovaChat()
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -33,12 +34,12 @@ export function NovaChatPanel({ onClose, className }: NovaChatPanelProps) {
       role="dialog"
       aria-label="Chat con Nova"
       className={cn(
-        "flex flex-col overflow-hidden rounded-2xl border border-white/10",
-        "bg-[#0A0A12] shadow-2xl shadow-[#7C3AED]/20",
+        "flex flex-col overflow-hidden",
+        !hideHeader && "rounded-2xl border border-white/10 bg-[#0A0A12] shadow-2xl shadow-[#7C3AED]/20",
         className,
       )}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+      {!hideHeader && <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4]">
             <Sparkles className="h-5 w-5 text-[#F1F5F9]" aria-hidden />
@@ -56,7 +57,7 @@ export function NovaChatPanel({ onClose, className }: NovaChatPanelProps) {
         >
           <X className="h-4 w-4" />
         </button>
-      </header>
+      </header>}
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
         <AnimatePresence initial={false}>

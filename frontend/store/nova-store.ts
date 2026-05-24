@@ -10,6 +10,7 @@ interface NovaState {
   messages: NovaMessage[]
   sessionId: string | null
   isTyping: boolean
+  activeTab: "chat" | "cv"
   open: () => void
   close: () => void
   toggle: () => void
@@ -20,6 +21,7 @@ interface NovaState {
   appendMessage: (message: Omit<NovaMessage, "id">) => void
   setSessionId: (sessionId: string | null) => void
   setIsTyping: (isTyping: boolean) => void
+  setActiveTab: (tab: "chat" | "cv") => void
   ensureGreeting: () => void
 }
 
@@ -31,10 +33,12 @@ export const useNovaStore = create<NovaState>((set, get) => ({
   messages: [],
   sessionId: null,
   isTyping: false,
+  activeTab: "chat",
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
   toggle: () => set((s) => ({ isOpen: !s.isOpen })),
+  setActiveTab: (activeTab) => set({ activeTab }),
 
   setVisible: (isVisible) => set({ isVisible }),
   setHasBottomNav: (hasBottomNav) => set({ hasBottomNav }),
