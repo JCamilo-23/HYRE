@@ -14,6 +14,7 @@ import {
   Play
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { WorkSimulatorChat } from "@/components/work-simulator/work-simulator-chat"
 import { Screen } from "@/lib/hyre-types"
 
 interface SimulationScreenProps {
@@ -109,6 +110,7 @@ const challenges = [
 
 export function SimulationScreen({ onNavigate }: SimulationScreenProps) {
   const [state, setState] = useState<SimulationState>("intro")
+  const [aiMode, setAiMode] = useState(false)
   const [currentChallenge, setCurrentChallenge] = useState<typeof challenges[0] | null>(null)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(0)
@@ -493,6 +495,36 @@ export function SimulationScreen({ onNavigate }: SimulationScreenProps) {
         </div>
       </div>
 
+      <div className="px-6 mb-4 flex gap-2">
+        <Button
+          type="button"
+          variant={aiMode ? "outline" : "default"}
+          size="sm"
+          className={aiMode ? "" : "bg-[#7C3AED] hover:bg-[#6D28D9]"}
+          onClick={() => setAiMode(false)}
+        >
+          Retos clásicos
+        </Button>
+        <Button
+          type="button"
+          variant={aiMode ? "default" : "outline"}
+          size="sm"
+          className={aiMode ? "bg-[#06B6D4] hover:bg-[#0891B2]" : ""}
+          onClick={() => setAiMode(true)}
+        >
+          Simulador IA (Gemini)
+        </Button>
+      </div>
+
+      {aiMode ? (
+        <div className="px-6 pb-8">
+          <WorkSimulatorChat
+            roleTitle={simulation.role}
+            companyName={simulation.company}
+          />
+        </div>
+      ) : (
+      <>
       {/* Challenges list */}
       <div className="px-6">
         <h2 className="text-lg font-semibold text-[#F1F5F9] mb-4">Retos</h2>
@@ -575,6 +607,8 @@ export function SimulationScreen({ onNavigate }: SimulationScreenProps) {
           </Button>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

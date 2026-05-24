@@ -9,6 +9,8 @@ const PUBLIC_ROUTES = [
   "/login",
   "/register",
   "/pricing",
+  "/onboarding",
+  "/auth",
   "/auth/callback",
 ];
 

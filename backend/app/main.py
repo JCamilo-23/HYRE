@@ -1,8 +1,20 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1.routes import jobs, simulations, copilot, video_analysis, billing, webhooks
+from app.api.v1.routes import (
+    jobs,
+    simulations,
+    copilot,
+    video_analysis,
+    billing,
+    webhooks,
+    work_simulator,
+)
+
+logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
 app = FastAPI(title="Hyre API", version="1.0.0")
 
@@ -20,6 +32,11 @@ app.include_router(copilot.router, prefix="/api/v1/copilot", tags=["copilot"])
 app.include_router(video_analysis.router, prefix="/api/v1/video", tags=["video"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+app.include_router(
+    work_simulator.router,
+    prefix="/api/v1/work-simulator",
+    tags=["work-simulator"],
+)
 
 
 @app.get("/health")

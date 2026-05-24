@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { SplashScreen } from "@/components/skillmatch/splash-screen"
-import { OnboardingScreen } from "@/components/skillmatch/onboarding-screen"
 import { UserTypeScreen } from "@/components/skillmatch/user-type-screen"
 import { RegisterScreen } from "@/components/skillmatch/register-screen"
 import { HomeScreen } from "@/components/skillmatch/home-screen"
@@ -15,6 +14,7 @@ import { ReportScreen } from "@/components/skillmatch/report-screen"
 import { ProfileScreen } from "@/components/skillmatch/profile-screen"
 import { MentorScreen } from "@/components/skillmatch/mentor-screen"
 import { BottomNav } from "@/components/skillmatch/bottom-nav"
+import { NovaAppSync } from "@/components/nova/nova-root"
 import { createClient } from "@/lib/supabase/client"
 import { mapRoleToUserType } from "@/modules/auth/utils"
 import type { Profile } from "@/modules/auth/types"
@@ -23,7 +23,7 @@ import type { Screen, UserData } from "@/lib/hyre-types"
 
 export function HyreApp() {
   const searchParams = useSearchParams()
-  const [currentScreen, setCurrentScreen] = useState<Screen>("splash")
+  const [currentScreen, setCurrentScreen] = useState<Screen>("userType")
   const [userType, setUserType] = useState<"candidate" | "company" | null>(null)
   const [isOnboarded, setIsOnboarded] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
@@ -49,8 +49,8 @@ export function HyreApp() {
       .single()
 
     const profile = profileData as Profile | null
-
     const mappedType = mapRoleToUserType(profile?.role)
+
     setUserData({
       name: profile?.full_name ?? session.user.email?.split("@")[0] ?? "Usuario",
       email: profile?.email ?? session.user.email ?? "",
@@ -72,21 +72,10 @@ export function HyreApp() {
     }
 
     void (async () => {
-      const hasSession = await hydrateFromSession()
-      if (!hasSession && authStatus !== "error") {
-        setCurrentScreen("splash")
-      }
+      await hydrateFromSession()
       setAuthChecking(false)
     })()
   }, [searchParams, hydrateFromSession])
-
-  useEffect(() => {
-    if (authChecking || isOnboarded) return
-    if (currentScreen === "splash") {
-      const timer = setTimeout(() => setCurrentScreen("onboarding"), 2500)
-      return () => clearTimeout(timer)
-    }
-  }, [currentScreen, authChecking, isOnboarded])
 
   useEffect(() => {
     const supabase = createClient()
@@ -97,8 +86,6 @@ export function HyreApp() {
     })
     return () => subscription.unsubscribe()
   }, [hydrateFromSession])
-
-  const handleOnboardingComplete = () => setCurrentScreen("userType")
 
   const handleUserTypeSelect = (type: "candidate" | "company") => {
     setUserType(type)
@@ -115,10 +102,6 @@ export function HyreApp() {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case "splash":
-        return <SplashScreen />
-      case "onboarding":
-        return <OnboardingScreen onComplete={handleOnboardingComplete} />
       case "userType":
         return <UserTypeScreen onSelect={handleUserTypeSelect} />
       case "register":
@@ -145,17 +128,15 @@ export function HyreApp() {
       case "profile":
         return <ProfileScreen onNavigate={setCurrentScreen} userData={userData} />
       case "mentor":
-        return <MentorScreen onNavigate={setCurrentScreen} userData={userData} />
+        return <MentorScreen onNavigate={setCurrentScreen} />
       default:
-        return <HomeScreen onNavigate={setCurrentScreen} userData={userData} />
+        return <UserTypeScreen onSelect={handleUserTypeSelect} />
     }
   }
 
   const showBottomNav =
     isOnboarded &&
-    !["splash", "onboarding", "userType", "register", "interview", "simulation"].includes(
-      currentScreen,
-    )
+    !["userType", "register", "interview", "simulation"].includes(currentScreen)
 
   if (authChecking) {
     return (
@@ -166,7 +147,13 @@ export function HyreApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <NovaAppSync
+        isOnboarded={isOnboarded}
+        showBottomNav={showBottomNav}
+        userName={userData.name}
+      />
+
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#7C3AED]/15 rounded-full blur-[120px] opacity-50" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#06B6D4]/15 rounded-full blur-[100px] opacity-40" />
