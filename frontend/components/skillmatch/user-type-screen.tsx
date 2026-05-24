@@ -151,7 +151,7 @@ export function UserTypeScreen({ onSelect }: UserTypeScreenProps) {
 
           {/* Features */}
           <div className="mt-4 flex flex-wrap gap-2">
-            {["Reportes IA", "Pipeline", "Simulaciones", "Vacantes"].map((feature) => (
+            {["Reportes IA", "Aceptar candidatos", "Pipeline", "Vacantes"].map((feature) => (
               <span
                 key={feature}
                 className={`px-3 py-1 rounded-full text-xs ${

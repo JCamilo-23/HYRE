@@ -2,55 +2,28 @@
 
 import { motion } from "framer-motion"
 import {
+  BarChart3,
   Building2,
   ChevronRight,
+  ClipboardCheck,
   MapPin,
-  Sparkles,
-  Target,
-  TrendingUp,
+  UserCheck,
   Users,
 } from "lucide-react"
 import { Screen, UserData } from "@/lib/hyre-types"
+import { EMPLOYER_CANDIDATES } from "@/lib/employer-mock-data"
 
 interface EmployerHomeScreenProps {
   onNavigate: (screen: Screen) => void
   userData: UserData
 }
 
-const mockCandidates = [
-  {
-    id: 1,
-    name: "Maria G.",
-    role: "Desarrolladora Frontend",
-    match: 92,
-    skills: ["React", "TypeScript", "Comunicacion"],
-    initials: "MG",
-    color: "#7C3AED",
-  },
-  {
-    id: 2,
-    name: "Carlos R.",
-    role: "UX Designer",
-    match: 88,
-    skills: ["Figma", "Research", "Prototipado"],
-    initials: "CR",
-    color: "#06B6D4",
-  },
-  {
-    id: 3,
-    name: "Ana L.",
-    role: "Product Manager",
-    match: 85,
-    skills: ["Agile", "Analytics", "Liderazgo"],
-    initials: "AL",
-    color: "#10B981",
-  },
-]
-
 export function EmployerHomeScreen({ onNavigate, userData }: EmployerHomeScreenProps) {
   const company = userData.company
   const companyName = company?.companyName || "Tu empresa"
   const vacancy = company?.vacancyTitle || "Sin vacante activa"
+  const pendingCount = EMPLOYER_CANDIDATES.filter((c) => c.status === "pending").length
+  const acceptedCount = EMPLOYER_CANDIDATES.filter((c) => c.status === "accepted").length
 
   return (
     <div className="min-h-screen pb-24 safe-area-top">
@@ -96,67 +69,66 @@ export function EmployerHomeScreen({ onNavigate, userData }: EmployerHomeScreenP
         </motion.div>
       </div>
 
-      <div className="px-6 mb-4">
+      <div className="px-6 mb-6">
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Matches", value: "12", icon: Target, color: "#7C3AED" },
-            { label: "En pipeline", value: "5", icon: TrendingUp, color: "#06B6D4" },
-            { label: "Simulaciones", value: "3", icon: Sparkles, color: "#10B981" },
+            { label: "Por revisar", value: String(pendingCount), icon: ClipboardCheck, color: "#F59E0B", screen: "employerAccept" as Screen },
+            { label: "Aceptados", value: String(acceptedCount), icon: UserCheck, color: "#10B981", screen: "employerAccept" as Screen },
+            { label: "Reportes IA", value: String(EMPLOYER_CANDIDATES.length), icon: BarChart3, color: "#06B6D4", screen: "employerReports" as Screen },
           ].map((stat) => (
-            <div key={stat.label} className="glass rounded-xl p-3 text-center">
+            <button
+              key={stat.label}
+              onClick={() => onNavigate(stat.screen)}
+              className="glass rounded-xl p-3 text-center hover:bg-white/5 transition-colors"
+            >
               <stat.icon className="w-4 h-4 mx-auto mb-1" style={{ color: stat.color }} />
               <p className="text-[#F1F5F9] font-bold text-lg">{stat.value}</p>
               <p className="text-[#475569] text-xs">{stat.label}</p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="px-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[#F1F5F9] font-medium">Candidatos recomendados</h2>
-          <button className="text-[#06B6D4] text-sm flex items-center gap-1">
-            Ver todos
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {mockCandidates.map((candidate, index) => (
-            <motion.button
-              key={candidate.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="glass rounded-xl p-4 text-left hover:bg-white/5 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-[#F1F5F9]"
-                  style={{ backgroundColor: candidate.color }}
-                >
-                  {candidate.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[#F1F5F9] font-medium">{candidate.name}</p>
-                    <span className="text-[#10B981] font-bold text-sm">{candidate.match}%</span>
-                  </div>
-                  <p className="text-[#94A3B8] text-sm">{candidate.role}</p>
-                  <div className="flex gap-1.5 mt-2">
-                    {candidate.skills.slice(0, 3).map((skill) => (
-                      <span
-                        key={skill}
-                        className="px-2 py-0.5 rounded-md bg-[#1A1A2E] text-[#94A3B8] text-xs"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+      {pendingCount > 0 && (
+        <div className="px-6 mb-6">
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => onNavigate("employerAccept")}
+            className="w-full p-4 rounded-2xl text-left border border-[#F59E0B]/30 bg-gradient-to-r from-[#F59E0B]/15 to-[#06B6D4]/10"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[#F1F5F9] font-medium mb-1">
+                  {pendingCount} candidato{pendingCount > 1 ? "s" : ""} esperando tu decision
+                </p>
+                <p className="text-[#94A3B8] text-sm">
+                  Revisa sus reportes IA y acepta a quienes encajen
+                </p>
               </div>
-            </motion.button>
-          ))}
+              <ChevronRight className="w-5 h-5 text-[#F59E0B] shrink-0" />
+            </div>
+          </motion.button>
+        </div>
+      )}
+
+      <div className="px-6">
+        <h2 className="text-[#F1F5F9] font-medium mb-4">Acciones rapidas</h2>
+        <div className="flex flex-col gap-3">
+          <ActionCard
+            icon={UserCheck}
+            title="Aceptar candidatos"
+            description="Revisa evaluaciones y decide quien avanza"
+            color="#10B981"
+            onClick={() => onNavigate("employerAccept")}
+          />
+          <ActionCard
+            icon={BarChart3}
+            title="Ver reportes IA"
+            description="Consulta el desglose completo de cada candidato"
+            color="#06B6D4"
+            onClick={() => onNavigate("employerReports")}
+          />
         </div>
       </div>
 
@@ -179,5 +151,38 @@ export function EmployerHomeScreen({ onNavigate, userData }: EmployerHomeScreenP
         </div>
       )}
     </div>
+  )
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  description,
+  color,
+  onClick,
+}: {
+  icon: typeof UserCheck
+  title: string
+  description: string
+  color: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="glass rounded-xl p-4 text-left hover:bg-white/5 transition-colors flex items-center gap-4"
+    >
+      <div
+        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${color}20` }}
+      >
+        <Icon className="w-5 h-5" style={{ color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[#F1F5F9] font-medium">{title}</p>
+        <p className="text-[#94A3B8] text-sm">{description}</p>
+      </div>
+      <ChevronRight className="w-5 h-5 text-[#475569] shrink-0" />
+    </button>
   )
 }

@@ -6,6 +6,8 @@ export type Screen =
   | "companyOnboarding"
   | "home"
   | "employerHome"
+  | "employerAccept"
+  | "employerReports"
   | "match"
   | "simulation"
   | "interview"

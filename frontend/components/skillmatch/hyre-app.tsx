@@ -7,6 +7,8 @@ import { RegisterScreen } from "@/components/skillmatch/register-screen"
 import { CompanyOnboardingScreen } from "@/components/skillmatch/company-onboarding-screen"
 import { HomeScreen } from "@/components/skillmatch/home-screen"
 import { EmployerHomeScreen } from "@/components/skillmatch/employer-home-screen"
+import { EmployerAcceptScreen } from "@/components/skillmatch/employer-accept-screen"
+import { EmployerReportsScreen } from "@/components/skillmatch/employer-reports-screen"
 import { MatchScreen } from "@/components/skillmatch/match-screen"
 import { SimulationScreen } from "@/components/skillmatch/simulation-screen"
 import { InterviewScreen } from "@/components/skillmatch/interview-screen"
@@ -87,6 +89,10 @@ export function HyreApp() {
         return <HomeScreen onNavigate={setCurrentScreen} userData={userData} />
       case "employerHome":
         return <EmployerHomeScreen onNavigate={setCurrentScreen} userData={userData} />
+      case "employerAccept":
+        return <EmployerAcceptScreen onNavigate={setCurrentScreen} />
+      case "employerReports":
+        return <EmployerReportsScreen onNavigate={setCurrentScreen} />
       case "match":
         return <MatchScreen onNavigate={setCurrentScreen} />
       case "simulation":
