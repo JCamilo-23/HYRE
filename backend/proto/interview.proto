@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package hyre.interview.v1;
+
+service InterviewAnalysis {
+  rpc AnalyzeTranscript (TranscriptRequest) returns (AnalysisResponse);
+  rpc StreamMetrics (MetricsRequest) returns (stream MetricEvent);
+}
+
+message TranscriptRequest {
+  string session_id = 1;
+  string text = 2;
+  string job_context = 3;
+  repeated string required_skills = 4;
+}
+
+message AnalysisResponse {
+  double overall_score = 1;
+  double hire_probability = 2;
+  string recommendation = 3;
+  bytes content_json = 4;
+}
+
+message MetricsRequest {
+  string session_id = 1;
+}
+
+message MetricEvent {
+  string metric_key = 1;
+  double value = 2;
+  int64 timestamp_ms = 3;
+}

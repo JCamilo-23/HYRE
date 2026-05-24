@@ -7,3 +7,13 @@ stripe==10.12.0
 resend==2.4.0
 python-multipart==0.0.12
 Pillow==10.4.0
+numpy==1.26.4
+scipy==1.14.1
+librosa==0.10.2.post1
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.14
+celery==5.4.0
+redis==5.2.0
+grpcio==1.68.0
+grpcio-tools==1.68.0
+protobuf==5.28.3
