@@ -70,6 +70,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const srRef = useRef<SpeechRecognition | null>(null)
   const pendingRef = useRef("")
   const autoSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wantListeningRef = useRef(false)
 
   // Sync refs
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -97,6 +98,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         streamRef.current = media
         if (videoRef.current) videoRef.current.srcObject = media
         // Auto-start STT once mic permission is granted
+        wantListeningRef.current = true
         try { srRef.current?.start(); setSttListening(true) } catch { /* already running */ }
       })
       .catch(err => {
@@ -153,8 +155,23 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         }, 1800)
       }
     }
-    sr.onerror = () => setSttListening(false)
-    sr.onend = () => setSttListening(false)
+    sr.onerror = (ev) => {
+      // no-speech is benign — just restart
+      if (ev.error === "no-speech" && wantListeningRef.current) {
+        try { sr.start() } catch {}
+        return
+      }
+      setSttListening(false)
+    }
+    sr.onend = () => {
+      setSttListening(false)
+      // Chrome stops even with continuous:true — restart if we still want to listen
+      if (wantListeningRef.current) {
+        setTimeout(() => {
+          try { srRef.current?.start(); setSttListening(true) } catch {}
+        }, 150)
+      }
+    }
     srRef.current = sr
     return () => { sr.stop(); srRef.current = null }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,6 +207,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
 
   const doGenerateReport = useCallback(async (history: Message[]) => {
     if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+    wantListeningRef.current = false
     srRef.current?.stop()
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
@@ -209,9 +227,11 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     const sr = srRef.current
     if (!sr) return
     if (sttListening) {
+      wantListeningRef.current = false
       sr.stop()
       setSttListening(false)
     } else {
+      wantListeningRef.current = true
       try { sr.start(); setSttListening(true) } catch { /* ya corriendo */ }
     }
   }, [sttListening])
