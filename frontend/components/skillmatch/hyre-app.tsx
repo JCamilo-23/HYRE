@@ -22,15 +22,28 @@ import { CandidateNova } from "@/components/nova/nova-root"
 
 import type { CompanyProfile, Screen, UserData } from "@/lib/hyre-types"
 
-export function HyreApp() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>("userType")
-  const [userType, setUserType] = useState<"candidate" | "company" | null>(null)
-  const [isOnboarded, setIsOnboarded] = useState(false)
+interface HyreAppProps {
+  initialScreen?: Screen
+  initialUserType?: "candidate" | "company" | null
+  initialIsOnboarded?: boolean
+  initialUserData?: Partial<UserData>
+}
+
+export function HyreApp({
+  initialScreen = "userType",
+  initialUserType = null,
+  initialIsOnboarded = false,
+  initialUserData,
+}: HyreAppProps = {}) {
+  const [currentScreen, setCurrentScreen] = useState<Screen>(initialScreen)
+  const [userType, setUserType] = useState<"candidate" | "company" | null>(initialUserType)
+  const [isOnboarded, setIsOnboarded] = useState(initialIsOnboarded)
   const [pendingRegistration, setPendingRegistration] = useState<{ name: string; email: string } | null>(null)
   const [userData, setUserData] = useState<UserData>({
-    name: "",
-    email: "",
-    userType: null,
+    name: initialUserData?.name ?? "",
+    email: initialUserData?.email ?? "",
+    userType: initialUserData?.userType ?? initialUserType,
+    ...(initialUserData?.company ? { company: initialUserData.company } : {}),
   })
 
   const handleUserTypeSelect = (type: "candidate" | "company") => {
