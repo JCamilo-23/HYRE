@@ -13,6 +13,7 @@ import { SimulationScreen } from "@/components/skillmatch/simulation-screen"
 import { InterviewScreen } from "@/components/skillmatch/interview-screen"
 import { ReportScreen } from "@/components/skillmatch/report-screen"
 import { ProfileScreen } from "@/components/skillmatch/profile-screen"
+import { SettingsScreen } from "@/components/skillmatch/settings-screen"
 import { MentorScreen } from "@/components/skillmatch/mentor-screen"
 import { BottomNav } from "@/components/skillmatch/bottom-nav"
 import { CandidateNova } from "@/components/nova/nova-root"
@@ -64,6 +65,14 @@ export function HyreApp() {
     setCurrentScreen("employerHome")
   }
 
+  const handleResetToStart = () => {
+    setCurrentScreen("userType")
+    setUserType(null)
+    setIsOnboarded(false)
+    setPendingRegistration(null)
+    setUserData({ name: "", email: "", userType: null })
+  }
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "userType":
@@ -100,6 +109,14 @@ export function HyreApp() {
         return <ReportScreen onNavigate={setCurrentScreen} />
       case "profile":
         return <ProfileScreen onNavigate={setCurrentScreen} userData={userData} />
+      case "settings":
+        return (
+          <SettingsScreen
+            onNavigate={setCurrentScreen}
+            onResetToStart={handleResetToStart}
+            userData={userData}
+          />
+        )
       case "mentor":
         return <MentorScreen onNavigate={setCurrentScreen} />
       default:
@@ -108,7 +125,8 @@ export function HyreApp() {
   }
 
   const onboardingScreens: Screen[] = ["userType", "register", "companyOnboarding"]
-  const showBottomNav = isOnboarded && !onboardingScreens.includes(currentScreen) && !["interview", "simulation"].includes(currentScreen)
+  const hiddenNavScreens: Screen[] = ["interview", "simulation", "settings"]
+  const showBottomNav = isOnboarded && !onboardingScreens.includes(currentScreen) && !hiddenNavScreens.includes(currentScreen)
   const showCandidateNova = isOnboarded && userData.userType === "candidate"
 
   return (

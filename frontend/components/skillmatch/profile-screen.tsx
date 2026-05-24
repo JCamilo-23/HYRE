@@ -73,7 +73,11 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
           <h1 className="text-2xl font-semibold text-[#F1F5F9]">
             {isCompany ? "Perfil de empresa" : "Mi perfil"}
           </h1>
-          <button className="w-10 h-10 glass rounded-full flex items-center justify-center">
+          <button
+            onClick={() => onNavigate("settings")}
+            className="w-10 h-10 glass rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+            aria-label="Configuracion"
+          >
             <Settings className="w-5 h-5 text-[#94A3B8]" />
           </button>
         </div>

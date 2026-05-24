@@ -12,6 +12,7 @@ export type Screen =
   | "interview"
   | "report"
   | "profile"
+  | "settings"
   | "mentor"
 
 export interface CompanyProfile {
