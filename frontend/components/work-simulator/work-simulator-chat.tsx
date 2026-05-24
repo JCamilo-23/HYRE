@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Bell, BellOff, Clock, Loader2, Send, Sparkles } from "lucide-react"
+import { Clock, Loader2, Send, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
 import { useWorkSimulator } from "@/modules/work-simulator"
 import { cn } from "@/lib/utils"
 
@@ -90,21 +91,29 @@ export function WorkSimulatorChat({
               {roleTitle} · {companyName}
             </h2>
           </div>
-          {currentChallenge && timeLeftSeconds !== null && (
-            <div
-              className={cn(
-                "flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-mono",
-                timeLeftSeconds <= 0
-                  ? "bg-red-500/20 text-red-400"
-                  : timeLeftSeconds < 300
-                    ? "bg-amber-500/20 text-amber-400"
-                    : "bg-[#1E293B] text-[#94A3B8]",
-              )}
-            >
-              <Clock className="h-3 w-3" />
-              {formatTimeLeft(timeLeftSeconds)}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {currentChallenge && timeLeftSeconds !== null && (
+              <div
+                className={cn(
+                  "flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-mono",
+                  timeLeftSeconds <= 0
+                    ? "bg-red-500/20 text-red-400"
+                    : timeLeftSeconds < 300
+                      ? "bg-amber-500/20 text-amber-400"
+                      : "bg-[#1E293B] text-[#94A3B8]",
+                )}
+              >
+                <Clock className="h-3 w-3" />
+                {formatTimeLeft(timeLeftSeconds)}
+              </div>
+            )}
+            <TaskNotificationBell
+              variant="header"
+              notificationsEnabled={notificationsEnabled}
+              onRequestPermission={requestNotificationPermission}
+              timeLeftSeconds={timeLeftSeconds}
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -117,21 +126,6 @@ export function WorkSimulatorChat({
             className="h-7 border-[#7C3AED] text-xs text-[#C4B5FD] hover:bg-[#7C3AED]/20"
           >
             Solicitar tarea
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => void requestNotificationPermission()}
-            className="h-7 text-xs"
-          >
-            {notificationsEnabled ? (
-              <Bell className="mr-1 h-3 w-3" />
-            ) : (
-              <BellOff className="mr-1 h-3 w-3" />
-            )}
-            Notificaciones
           </Button>
 
           <Button

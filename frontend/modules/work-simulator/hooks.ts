@@ -1,14 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   createWorkSimulatorSession,
   evaluateWorkChallengeResponse,
   generateWorkChallenge,
   sendWorkSimulatorMessage,
 } from "./api"
+import { WORK_DAY_NOTIFICATION_SLOTS } from "./constants"
 import { useWorkDayNotifications } from "./use-work-day-notifications"
 import type { GenerateChallengeOptions, WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession } from "./types"
+import { useTaskNotificationsStore } from "@/store/task-notifications-store"
 
 export function useWorkSimulator() {
   const [session, setSession] = useState<WorkSimulatorSession | null>(null)
@@ -18,6 +20,12 @@ export function useWorkSimulator() {
   const [error, setError] = useState<string | null>(null)
   const [compressedMode, setCompressedMode] = useState(false)
   const [timeLeftSeconds, setTimeLeftSeconds] = useState<number | null>(null)
+  const prevChallengeRef = useRef<WorkChallenge | null>(null)
+
+  const syncActiveChallenge = useTaskNotificationsStore((s) => s.syncActiveChallenge)
+  const completeActiveTask = useTaskNotificationsStore((s) => s.completeActiveTask)
+  const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
+  const setPushEnabled = useTaskNotificationsStore((s) => s.setPushEnabled)
 
   const applySession = useCallback((s: WorkSimulatorSession) => {
     setSession(s)
@@ -83,6 +91,33 @@ export function useWorkSimulator() {
       loading,
       onScheduledTask,
     })
+
+  useEffect(() => {
+    setPushEnabled(notificationsEnabled)
+  }, [notificationsEnabled, setPushEnabled])
+
+  useEffect(() => {
+    syncActiveChallenge(currentChallenge)
+    if (prevChallengeRef.current && !currentChallenge) {
+      completeActiveTask()
+    }
+    prevChallengeRef.current = currentChallenge
+  }, [currentChallenge, syncActiveChallenge, completeActiveTask])
+
+  useEffect(() => {
+    if (!session) return
+    const now = new Date()
+    const upcoming = WORK_DAY_NOTIFICATION_SLOTS.filter((slot) => {
+      const slotDate = new Date()
+      slotDate.setHours(slot.hour, slot.minute, 0, 0)
+      return slotDate.getTime() > now.getTime()
+    }).map((slot) => ({
+      id: `upcoming-${slot.hour}-${slot.minute}`,
+      simTimeLabel: slot.simTimeLabel,
+      label: slot.label,
+    }))
+    syncUpcomingSlots(upcoming)
+  }, [session, syncUpcomingSlots])
 
   const sendMessage = useCallback(
     async (text: string) => {

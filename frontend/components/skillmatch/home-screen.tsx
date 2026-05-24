@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion"
 import { 
-  Bell, 
   Sparkles, 
   Target, 
   Video, 
@@ -14,6 +13,10 @@ import {
 } from "lucide-react"
 import { Screen, UserData } from "@/app/page"
 import { useNovaStore } from "@/store/nova-store"
+import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
+import { useTaskNotificationsStore } from "@/store/task-notifications-store"
+import { WORK_DAY_NOTIFICATION_SLOTS } from "@/modules/work-simulator/constants"
+import { useEffect } from "react"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
@@ -93,7 +96,24 @@ const recentActivity = [
 
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
   const openNova = useNovaStore((s) => s.open)
+  const setPushEnabled = useTaskNotificationsStore((s) => s.setPushEnabled)
+  const pushEnabled = useTaskNotificationsStore((s) => s.pushEnabled)
+  const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
   const currentHour = new Date().getHours()
+
+  useEffect(() => {
+    const now = new Date()
+    const upcoming = WORK_DAY_NOTIFICATION_SLOTS.filter((slot) => {
+      const slotDate = new Date()
+      slotDate.setHours(slot.hour, slot.minute, 0, 0)
+      return slotDate.getTime() > now.getTime()
+    }).map((slot) => ({
+      id: `upcoming-${slot.hour}-${slot.minute}`,
+      simTimeLabel: slot.simTimeLabel,
+      label: slot.label,
+    }))
+    syncUpcomingSlots(upcoming)
+  }, [syncUpcomingSlots])
   const greeting = currentHour < 12 ? "Buenos dias" : currentHour < 18 ? "Buenas tardes" : "Buenas noches"
   
   // Obtener el primer nombre del usuario
@@ -114,11 +134,18 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
               <Zap className="w-4 h-4 text-[#F59E0B]" />
               <span className="text-[#F1F5F9] text-sm font-medium">2,450 XP</span>
             </div>
-            {/* Notification bell */}
-            <button className="relative w-10 h-10 glass rounded-full flex items-center justify-center">
-              <Bell className="w-5 h-5 text-[#F1F5F9]" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#EF4444] rounded-full" />
-            </button>
+            <TaskNotificationBell
+              variant="compact"
+              notificationsEnabled={pushEnabled}
+              onRequestPermission={async () => {
+                if (typeof window === "undefined" || !("Notification" in window)) return false
+                const perm = await Notification.requestPermission()
+                const granted = perm === "granted"
+                setPushEnabled(granted)
+                return granted
+              }}
+              onNavigateToSimulator={() => onNavigate("simulation")}
+            />
           </div>
         </div>
 
