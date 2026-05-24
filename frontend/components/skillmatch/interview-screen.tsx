@@ -40,10 +40,11 @@ const checklistItems = [
 
 const JOB_CONTEXT = "Desarrollador Full Stack — HYRE"
 
-function pickMimeType(): string {
-  if (typeof MediaRecorder === "undefined") return ""
-  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"]
-  return types.find((t) => MediaRecorder.isTypeSupported(t)) ?? ""
+type SpeechRecognitionCtor = new () => SpeechRecognition
+function getSR(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null
+  const w = window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
 }
 
 export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
@@ -59,31 +60,21 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [sttListening, setSttListening] = useState(false)
   const [sttInterim, setSttInterim] = useState("")
+  const [sttSupported, setSttSupported] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const messagesRef = useRef<Message[]>([])
   const loadingRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const srRef = useRef<SpeechRecognition | null>(null)
   const pendingRef = useRef("")
   const autoSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wantListeningRef = useRef(false)
 
-  // MediaRecorder + VAD refs
-  const recorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const vadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wasSpeakingRef = useRef(false)
-  const transcribeRef = useRef<(() => void) | null>(null)
-  const micOnRef = useRef(true)
-
   // Sync refs
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { loadingRef.current = loading }, [loading])
-  useEffect(() => { micOnRef.current = micOn }, [micOn])
 
   // Timer
   useEffect(() => {
@@ -97,7 +88,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Camera + MediaRecorder + VAD — solo cuando entra en "live"
+  // Camera setup — solo cuando entra en "live"
   useEffect(() => {
     if (stage !== "live") return
     let active = true
@@ -106,60 +97,20 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         if (!active) { media.getTracks().forEach(t => t.stop()); return }
         streamRef.current = media
         if (videoRef.current) videoRef.current.srcObject = media
-
-        // ── MediaRecorder ───────────────────────────────────────────────
-        const mime = pickMimeType()
-        const recorder = new MediaRecorder(media, mime ? { mimeType: mime } : undefined)
-        recorderRef.current = recorder
-        chunksRef.current = []
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-        recorder.start(300)
-
-        // ── AudioContext VAD ─────────────────────────────────────────────
-        const ctx = new AudioContext()
-        audioCtxRef.current = ctx
-        const source = ctx.createMediaStreamSource(media)
-        const analyser = ctx.createAnalyser()
-        analyser.fftSize = 256
-        source.connect(analyser)
-        analyserRef.current = analyser
-        const freqData = new Uint8Array(analyser.frequencyBinCount)
-
+        // Auto-start STT once mic permission is granted
         wantListeningRef.current = true
-        setSttListening(true)
-
-        vadIntervalRef.current = setInterval(() => {
-          if (!analyserRef.current || !micOnRef.current) return
-          analyserRef.current.getByteFrequencyData(freqData)
-          const avg = freqData.reduce((a, b) => a + b, 0) / freqData.length
-          if (avg > 18) {
-            wasSpeakingRef.current = true
-            if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
-          } else if (wasSpeakingRef.current && !silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              wasSpeakingRef.current = false
-              silenceTimerRef.current = null
-              transcribeRef.current?.()
-            }, 1200)
-          }
-        }, 100)
+        try { srRef.current?.start(); setSttListening(true) } catch { /* already running */ }
       })
       .catch(err => {
         const name = err instanceof DOMException ? err.name : ""
         setMediaError(
           name === "NotAllowedError" || name === "PermissionDeniedError"
             ? "Permiso de cámara denegado."
-            : "No se encontró cámara o micrófono."
+            : "No se encontró cámara."
         )
       })
     return () => {
       active = false
-      wantListeningRef.current = false
-      if (vadIntervalRef.current) { clearInterval(vadIntervalRef.current); vadIntervalRef.current = null }
-      if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
-      recorderRef.current?.stop(); recorderRef.current = null
-      audioCtxRef.current?.close(); audioCtxRef.current = null
-      analyserRef.current = null
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
@@ -172,46 +123,59 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     }
   }, [cameraOn])
 
-  // AssemblyAI transcription — called by VAD after silence
-  const transcribeAudio = useCallback(() => {
-    const chunks = [...chunksRef.current]
-    chunksRef.current = []
-    if (chunks.length < 2) return
-    const mime = chunks[0].type || "audio/webm"
-    const blob = new Blob(chunks, { type: mime })
-    if (blob.size < 600) return
+  // STT setup — una sola vez
+  useEffect(() => {
+    const SR = getSR()
+    if (!SR) return
+    setSttSupported(true)
+    const sr = new SR()
+    sr.lang = "es-ES"
+    sr.continuous = true
+    sr.interimResults = true
+    sr.maxAlternatives = 1
 
-    setSttInterim("Transcribiendo...")
-    const reader = new FileReader()
-    reader.onloadend = async () => {
-      const b64 = (reader.result as string).split(",")[1]
-      try {
-        const res = await fetch("/api/interviews/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: b64, mimeType: mime }),
-        })
-        const { text }: { text: string } = await res.json()
-        if (text?.trim()) {
-          setSttInterim("")
-          pendingRef.current = (pendingRef.current + " " + text).trim()
-          setInput(pendingRef.current)
-          if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-          autoSendTimer.current = setTimeout(() => {
-            const t = pendingRef.current
-            pendingRef.current = ""
-            if (t && !loadingRef.current) doSend(t)
-          }, 2500)
-        } else {
-          setSttInterim("")
-        }
-      } catch { setSttInterim("") }
+    sr.onresult = (ev) => {
+      let interim = ""
+      let final = ""
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ev.results[i][0]?.transcript ?? ""
+        if (ev.results[i].isFinal) final += t
+        else interim += t
+      }
+      if (interim) setSttInterim(interim)
+      if (final.trim()) {
+        setSttInterim("")
+        if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+        pendingRef.current = (pendingRef.current + " " + final).trim()
+        setInput(pendingRef.current)
+        autoSendTimer.current = setTimeout(() => {
+          const text = pendingRef.current
+          pendingRef.current = ""
+          if (text && !loadingRef.current) doSend(text)
+        }, 1800)
+      }
     }
-    reader.readAsDataURL(blob)
+    sr.onerror = (ev) => {
+      // no-speech is benign — just restart
+      if (ev.error === "no-speech" && wantListeningRef.current) {
+        try { sr.start() } catch {}
+        return
+      }
+      setSttListening(false)
+    }
+    sr.onend = () => {
+      setSttListening(false)
+      // Chrome stops even with continuous:true — restart if we still want to listen
+      if (wantListeningRef.current) {
+        setTimeout(() => {
+          try { srRef.current?.start(); setSttListening(true) } catch {}
+        }, 150)
+      }
+    }
+    srRef.current = sr
+    return () => { sr.stop(); srRef.current = null }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doSend])
-
-  useEffect(() => { transcribeRef.current = transcribeAudio }, [transcribeAudio])
+  }, [])
 
   const doSend = useCallback((text: string) => {
     const trimmed = text.trim()
@@ -243,11 +207,8 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
 
   const doGenerateReport = useCallback(async (history: Message[]) => {
     if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-    if (vadIntervalRef.current) { clearInterval(vadIntervalRef.current); vadIntervalRef.current = null }
-    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
     wantListeningRef.current = false
-    recorderRef.current?.stop(); recorderRef.current = null
-    audioCtxRef.current?.close(); audioCtxRef.current = null
+    srRef.current?.stop()
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     setStage("processing")
@@ -263,12 +224,15 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   }, [])
 
   const toggleStt = useCallback(() => {
+    const sr = srRef.current
+    if (!sr) return
     if (sttListening) {
       wantListeningRef.current = false
+      sr.stop()
       setSttListening(false)
     } else {
       wantListeningRef.current = true
-      setSttListening(true)
+      try { sr.start(); setSttListening(true) } catch { /* ya corriendo */ }
     }
   }, [sttListening])
 
@@ -516,21 +480,21 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
       </div>
 
       <div className="px-4 pb-6 pt-3 glass shrink-0">
-        {sttInterim && (
-          <p className="text-xs text-[#7C3AED] mb-1 px-1 flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> {sttInterim}
-          </p>
+        {sttListening && sttInterim && (
+          <p className="text-xs text-[#7C3AED] mb-1 px-1 truncate">🎙 {sttInterim}</p>
         )}
         <div className="flex gap-2">
-          <button onClick={toggleStt}
-            className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 transition-colors ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
-            <Mic className="w-4 h-4 text-white" />
-          </button>
+          {sttSupported && (
+            <button onClick={toggleStt}
+              className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 transition-colors ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
+              <Mic className="w-4 h-4 text-white" />
+            </button>
+          )}
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder="Habla o escribe tu respuesta..."
+            placeholder={sttSupported ? "Habla o escribe tu respuesta..." : "Escribe tu respuesta..."}
             rows={2}
             className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none resize-none"
           />
