@@ -1,7 +1,7 @@
 export function getGeminiModels(): string[] {
-  const primary = process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
-  const pro = process.env.GEMINI_PRO_MODEL ?? "gemini-1.5-pro"
-  return [...new Set([primary, pro, "gemini-1.5-flash"])]
+  const primary = process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
+  const pro = process.env.GEMINI_PRO_MODEL ?? "gemini-2.5-pro"
+  return [...new Set([primary, "gemini-2.5-flash", "gemini-flash-latest", pro, "gemini-2.0-flash"])]
 }
 
 export function getGeminiApiKey(): string | undefined {

@@ -13,7 +13,7 @@ interface BottomNavProps {
 const candidateNavItems = [
   { id: "home" as Screen, label: "Inicio", icon: Home },
   { id: "match" as Screen, label: "Match", icon: Target },
-  { id: "simulation" as Screen, label: "Simular", icon: Sparkles },
+  { id: "simulation" as Screen, label: "Simular IA", icon: Sparkles },
   { id: "interview" as Screen, label: "Entrevista", icon: Video },
   { id: "profile" as Screen, label: "Perfil", icon: User },
 ]

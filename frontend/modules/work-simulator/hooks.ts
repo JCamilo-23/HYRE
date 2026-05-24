@@ -10,7 +10,7 @@ import {
 import { getPushPermissionStatus } from "@/lib/push-notifications"
 import { WORK_DAY_NOTIFICATION_SLOTS } from "./constants"
 import { useWorkDayNotifications } from "./use-work-day-notifications"
-import type { GenerateChallengeOptions, WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession } from "./types"
+import type { GenerateChallengeOptions, WorkChallenge, WorkSimulatorMessage, WorkSimulatorSession, CreateWorkSimulatorSessionInput } from "./types"
 import { useTaskNotificationsStore } from "@/store/task-notifications-store"
 
 export function useWorkSimulator() {
@@ -35,7 +35,7 @@ export function useWorkSimulator() {
   }, [])
 
   const startSession = useCallback(
-    async (input: { job_id?: string; role_title?: string; company_name?: string }) => {
+    async (input: CreateWorkSimulatorSessionInput) => {
       setLoading(true)
       setError(null)
       try {

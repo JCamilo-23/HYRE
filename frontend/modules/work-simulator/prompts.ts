@@ -1,5 +1,7 @@
 import type { ScenarioContext } from "./types"
 import type { WorkBlock } from "./constants"
+import { INDUSTRY_TASK_FOCUS } from "./constants"
+import { inferIndustryKey } from "@/lib/match-companies"
 
 export const WORK_SIMULATOR_SYSTEM = `Eres el motor de simulación laboral EXIGENTE de JobFlow (Hyre).
 
@@ -29,17 +31,25 @@ export function buildSimulatorSystem(context: ScenarioContext): string {
   const reqText = context.requirements?.length
     ? context.requirements.join(", ")
     : "no especificados"
+  const cultureText = context.culture?.length ? context.culture.join(", ") : "no especificada"
+  const industryFocus =
+    context.industry && INDUSTRY_TASK_FOCUS[inferIndustryKey(context.industry)]
+      ? INDUSTRY_TASK_FOCUS[inferIndustryKey(context.industry)]
+      : INDUSTRY_TASK_FOCUS.default
 
   return `${WORK_SIMULATOR_SYSTEM}
 
 Contexto activo:
 - Rol: ${context.role_title ?? "Profesional"}
 - Empresa: ${context.company_name ?? "la empresa"}
-- Descripción del puesto: ${context.job_description ?? "General"}
+- Industria: ${context.industry ?? "General"}
+- Descripcion del puesto: ${context.job_description ?? "General"}
+- Cultura empresarial: ${cultureText}
 - Requisitos: ${reqText}
 - Fase: ${context.phase ?? "jornada laboral activa"}
 - Tareas completadas hoy: ${context.challenges_completed ?? 0}
-- Intensidad: EXIGENTE — estándares de producción`
+- Enfoque de tareas: ${industryFocus}
+- Intensidad: EXIGENTE — estandares de produccion`
 }
 
 export function challengeGenerationPrompt(
@@ -51,17 +61,28 @@ export function challengeGenerationPrompt(
   const timeLabel = slot?.simTimeLabel ?? "09:00"
   const slotLabel = slot?.label ?? "Nueva asignación"
 
-  return `Genera la ASIGNACIÓN DE TRABAJO #${challengeIndex} para simulación laboral.
+  const industryKey = inferIndustryKey(context.industry)
+  const industryFocus = INDUSTRY_TASK_FOCUS[industryKey] ?? INDUSTRY_TASK_FOCUS.default
+  const cultureText = context.culture?.length ? context.culture.join(", ") : "no especificada"
+
+  return `Genera la ASIGNACION DE TRABAJO #${challengeIndex} para simulacion laboral.
 
 Contexto:
 - Rol: ${context.role_title}
 - Empresa: ${context.company_name}
+- Industria: ${context.industry ?? "General"}
+- Perfil empresa: ${context.job_description ?? "Empresa profesional"}
+- Cultura: ${cultureText}
+- Enfoque obligatorio de tareas: ${industryFocus}
 - Hora simulada: ${timeLabel}
 - Momento: ${slotLabel}
 - Bloque: ${block}
 - Tareas previas hoy: ${JSON.stringify(context.challenge_titles ?? [])}
 
-PROHIBIDO: opciones múltiples, preguntas quiz, "elige A/B/C".
+IMPORTANTE: Las tareas DEBEN reflejar la industria (${context.industry ?? "General"}). 
+Ejemplo: fintech = compliance/fraude/pagos; diseno = UX/research/prototipos; tecnologia = incidentes/code review/arquitectura.
+
+PROHIBIDO: opciones multiples, preguntas quiz, "elige A/B/C".
 OBLIGATORIO: entregable profesional real que el candidato redacte/ejecute en texto.
 
 Tipos de entregable válidos: email, document, code_review, bugfix_plan, client_response, report, meeting_notes, backlog_update.

@@ -14,67 +14,23 @@ import {
   Sparkles
 } from "lucide-react"
 import { Screen } from "@/lib/hyre-types"
+import { MATCH_COMPANIES, type MatchCompany } from "@/lib/match-companies"
+import { useLikedCompaniesStore } from "@/store/liked-companies-store"
 
 interface MatchScreenProps {
   onNavigate: (screen: Screen) => void
 }
 
-const companies = [
-  {
-    id: 1,
-    name: "TechCorp Colombia",
-    industry: "Tecnologia",
-    size: "51-200 empleados",
-    match: 94,
-    vacancy: "Desarrollador Frontend Jr",
-    description: "Empresa lider en desarrollo de software con cultura innovadora y ambiente colaborativo.",
-    culture: ["Innovador", "Colaborativo", "Flexible", "Remoto"],
-    benefits: ["Trabajo remoto", "Horario flexible", "Capacitacion pagada", "Seguro medico"],
-    location: "Bogota, Colombia",
-    logo: "T",
-    color: "#7C3AED",
-    bgGradient: "from-[#7C3AED]/30 to-[#06B6D4]/20",
-  },
-  {
-    id: 2,
-    name: "DesignLab Studio",
-    industry: "Diseno",
-    size: "11-50 empleados",
-    match: 89,
-    vacancy: "UX/UI Designer",
-    description: "Estudio de diseno digital enfocado en crear experiencias memorables para startups.",
-    culture: ["Creativo", "Dinamico", "Startup", "Internacional"],
-    benefits: ["Remoto hibrido", "Bonos", "Dias libres extra", "Gimnasio"],
-    location: "Medellin, Colombia",
-    logo: "D",
-    color: "#06B6D4",
-    bgGradient: "from-[#06B6D4]/30 to-[#10B981]/20",
-  },
-  {
-    id: 3,
-    name: "StartupXYZ",
-    industry: "Fintech",
-    size: "1-10 empleados",
-    match: 87,
-    vacancy: "Product Manager Jr",
-    description: "Fintech en crecimiento que esta revolucionando los pagos digitales en Latam.",
-    culture: ["Startup", "Agil", "Autonomo", "Competitivo"],
-    benefits: ["Equity", "Horario flexible", "Crecimiento rapido"],
-    location: "Remoto",
-    logo: "S",
-    color: "#10B981",
-    bgGradient: "from-[#10B981]/30 to-[#F59E0B]/20",
-  },
-]
-
 export function MatchScreen({ onNavigate }: MatchScreenProps) {
-  const [cards, setCards] = useState(companies)
+  const addLike = useLikedCompaniesStore((s) => s.addLike)
+  const [cards, setCards] = useState(MATCH_COMPANIES)
   const [showMatch, setShowMatch] = useState(false)
-  const [matchedCompany, setMatchedCompany] = useState<typeof companies[0] | null>(null)
+  const [matchedCompany, setMatchedCompany] = useState<MatchCompany | null>(null)
   const [expandedCard, setExpandedCard] = useState(false)
 
-  const handleSwipe = (direction: "left" | "right" | "up", company: typeof companies[0]) => {
+  const handleSwipe = (direction: "left" | "right" | "up", company: MatchCompany) => {
     if (direction === "right" || direction === "up") {
+      addLike(company)
       setMatchedCompany(company)
       setShowMatch(true)
     }
@@ -89,6 +45,7 @@ export function MatchScreen({ onNavigate }: MatchScreenProps) {
     const company = cards[0]
     
     if (action === "like" || action === "superlike") {
+      addLike(company)
       setMatchedCompany(company)
       setShowMatch(true)
     }
@@ -199,7 +156,7 @@ function SwipeCard({
   expanded,
   onToggleExpand
 }: { 
-  company: typeof companies[0]
+  company: MatchCompany
   index: number
   onSwipe: (direction: "left" | "right" | "up") => void
   isTop: boolean
@@ -234,7 +191,7 @@ function SwipeCard({
         y: isTop ? y : 0,
         rotate: isTop ? rotate : 0,
         scale: 1 - index * 0.05,
-        zIndex: companies.length - index,
+        zIndex: MATCH_COMPANIES.length - index,
       }}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
@@ -361,7 +318,7 @@ function MatchModal({
   onClose,
   onSimulation
 }: { 
-  company: typeof companies[0]
+  company: MatchCompany
   onClose: () => void
   onSimulation: () => void
 }) {
