@@ -71,17 +71,17 @@ export function HeroSection() {
     mouseY.set(0)
   }
 
+  const spotlightBackground = useTransform(
+    [spotlightX, spotlightY],
+    ([x, y]) =>
+      `radial-gradient(900px circle at ${x}% ${y}%, rgba(124,58,237,0.22), transparent 55%)`,
+  )
+
   return (
     <section className="relative min-h-[92vh] overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-28 lg:pb-32">
       <motion.div
         className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          background: useTransform(
-            [spotlightX, spotlightY],
-            ([x, y]) =>
-              `radial-gradient(900px circle at ${x}% ${y}%, rgba(124,58,237,0.22), transparent 55%)`,
-          ),
-        }}
+        style={{ background: spotlightBackground }}
       />
       <div className="pointer-events-none absolute inset-x-0 top-24 h-[520px] bg-gradient-to-b from-[#7C3AED]/12 via-[#7C3AED]/4 to-transparent" />
       <div className="pointer-events-none absolute left-1/2 top-32 h-px w-[min(90%,720px)] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#7C3AED]/50 to-transparent" />
