@@ -8,7 +8,9 @@ import { createClient } from "@/lib/supabase/client"
 import { assertSupabaseConfigured, isSupabaseConfigured } from "@/lib/supabase/config-status"
 import { SupabaseConfigBanner } from "@/components/auth/supabase-config-banner"
 import { signInWithOAuthProvider } from "@/modules/auth/oauth"
-import { mapUserTypeToRole } from "@/modules/auth/utils"
+import { ensureUserProfile } from "@/modules/auth/ensure-profile"
+import { mapUserTypeToRole, getAuthCallbackUrl } from "@/modules/auth/utils"
+import { getSupabaseConfigStatus } from "@/lib/supabase/config-status"
 import type { OAuthProvider } from "@/modules/auth/utils"
 import type { Profile } from "@/modules/auth/types"
 
@@ -73,6 +75,7 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
   const role = mapUserTypeToRole(userType)
   const supabaseReady = isSupabaseConfigured()
+  const supabaseStatus = getSupabaseConfigStatus()
 
   const validateSignupForm = () => {
     const newErrors: Record<string, string> = {}
@@ -116,6 +119,15 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
 
     const profile = profileData as Profile | null
 
+    if (!profile) {
+      await ensureUserProfile(
+        user.id,
+        user.email ?? formData.email,
+        role,
+        user.user_metadata?.full_name ?? formData.name,
+      )
+    }
+
     onComplete({
       name: profile?.full_name ?? user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Usuario",
       email: profile?.email ?? user.email ?? formData.email,
@@ -139,7 +151,7 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
       const supabase = createClient()
 
       if (isSignup) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: formData.email.trim(),
           password: formData.password,
           options: {
@@ -147,9 +159,17 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
               full_name: formData.name.trim(),
               role,
             },
+            emailRedirectTo: getAuthCallbackUrl(role, "/app"),
           },
         })
         if (error) throw error
+
+        if (!data.session) {
+          setAuthError(
+            "Cuenta creada. Revisa tu correo para confirmar el registro, o desactiva 'Confirm email' en Supabase → Authentication → Providers → Email.",
+          )
+          return
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: formData.email.trim(),
@@ -204,6 +224,13 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
           <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {authError}
           </div>
+        )}
+
+        {!supabaseReady && supabaseStatus.url && (
+          <p className="mb-4 text-center text-xs text-[#64748B]">
+            Detectado:{" "}
+            <code className="text-amber-400">{new URL(supabaseStatus.url).hostname}</code>
+          </p>
         )}
 
         <div className="flex-1 flex flex-col gap-3">
