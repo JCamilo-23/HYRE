@@ -56,7 +56,13 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
       }
 
       if (!res.ok) {
-        throw new Error(data.error ?? "No se pudo analizar el CV")
+        const msg = data.error ?? "No se pudo analizar el CV"
+        if (res.status === 503 && msg.includes("GEMINI_API_KEY")) {
+          throw new Error(
+            "Falta configurar la IA. Agrega GEMINI_API_KEY en frontend/.env.local (local) o en Vercel → Settings → Environment Variables (produccion), luego reinicia el servidor.",
+          )
+        }
+        throw new Error(msg)
       }
 
       if (!data.analysis) {
