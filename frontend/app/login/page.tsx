@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { HyreApp } from "@/components/skillmatch/hyre-app"
 
 export default function LoginPage() {
-  redirect("/app")
+  return <HyreApp />
 }

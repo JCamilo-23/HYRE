@@ -2,6 +2,6 @@
 
 import { HyreApp } from "@/components/skillmatch/hyre-app"
 
-export default function RegisterPage() {
+export default function EmpezarPage() {
   return <HyreApp />
 }

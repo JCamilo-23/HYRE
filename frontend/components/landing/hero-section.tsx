@@ -83,7 +83,7 @@ export function HeroSection() {
                 className="group h-13 rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF] px-8 text-base font-semibold shadow-[0_0_48px_rgba(124,58,237,0.55)] transition hover:brightness-110"
                 asChild
               >
-                <Link href="/app">
+                <Link href="/empezar">
                   Empezar ahora
                   <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </Link>
