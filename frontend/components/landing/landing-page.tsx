@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/landing/navbar"
 import { HeroSection } from "@/components/landing/hero-section"
+import { TrustStrip } from "@/components/landing/trust-strip"
 import { FeaturesSection } from "@/components/landing/features-section"
 import { HowItWorksSection } from "@/components/landing/how-it-works-section"
 import { ProductPreviewSection } from "@/components/landing/product-preview-section"
@@ -16,6 +17,7 @@ export function LandingPage() {
       <Navbar />
       <main>
         <HeroSection />
+        <TrustStrip />
         <FeaturesSection />
         <HowItWorksSection />
         <ProductPreviewSection />

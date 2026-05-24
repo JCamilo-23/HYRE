@@ -207,3 +207,18 @@
     scroll-behavior: auto;
   }
 }
+
+
+.hyre-shimmer {
+  background-size: 200% auto;
+  animation: hyre-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes hyre-shimmer {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hyre-shimmer { animation: none; }
+}

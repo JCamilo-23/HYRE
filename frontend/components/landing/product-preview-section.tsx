@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { BarChart3, Brain, Target, Trophy } from "lucide-react"
 import { FadeIn } from "@/components/landing/motion"
+import { SectionHeader } from "@/components/landing/section-header"
 
 const matches = [
   { company: "TechCorp", role: "Frontend Dev", match: 94, color: "#7C3AED" },
@@ -12,21 +13,14 @@ const matches = [
 
 export function ProductPreviewSection() {
   return (
-    <section className="relative overflow-hidden py-24 sm:py-32">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#7C3AED]/5 to-transparent" />
+    <section className="relative overflow-hidden py-28 sm:py-36">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#7C3AED]/6 to-transparent" />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <FadeIn className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#10B981]">
-            Vista previa
-          </p>
-          <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Un dashboard que se siente del futuro
-          </h2>
-          <p className="mt-4 text-[#94A3B8]">
-            Analytics en tiempo real, match scores y progreso XP — todo en una interfaz
-            cinematic y clara.
-          </p>
-        </FadeIn>
+        <SectionHeader
+          eyebrow="Vista previa"
+          title="Un dashboard que se siente del futuro"
+          description="Analytics en tiempo real, match scores y progreso XP — todo en una interfaz cinemática y clara."
+        />
 
         <FadeIn delay={0.1} className="mt-16">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#120a24]/60 shadow-[0_0_80px_rgba(6,182,212,0.12)] backdrop-blur-2xl">
