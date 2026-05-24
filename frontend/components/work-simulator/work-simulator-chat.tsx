@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
 import { useWorkSimulator } from "@/modules/work-simulator"
+import type { MatchCompany } from "@/lib/match-companies"
 import { cn } from "@/lib/utils"
 
 interface WorkSimulatorChatProps {
-  roleTitle?: string
-  companyName?: string
-  jobId?: string
+  company: MatchCompany
   className?: string
 }
 
@@ -22,12 +21,7 @@ function formatTimeLeft(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
-export function WorkSimulatorChat({
-  roleTitle = "Desarrollador Frontend Jr",
-  companyName = "TechCorp Colombia",
-  jobId,
-  className,
-}: WorkSimulatorChatProps) {
+export function WorkSimulatorChat({ company, className }: WorkSimulatorChatProps) {
   const {
     session,
     messages,
@@ -49,11 +43,17 @@ export function WorkSimulatorChat({
 
   useEffect(() => {
     if (!session) {
-      startSession({ role_title: roleTitle, company_name: companyName, job_id: jobId }).catch(
-        () => undefined,
-      )
+      startSession({
+        role_title: company.vacancy,
+        company_name: company.name,
+        job_id: String(company.id),
+        industry: company.industry,
+        job_description: company.description,
+        culture: company.culture,
+        benefits: company.benefits,
+      }).catch(() => undefined)
     }
-  }, [session, startSession, roleTitle, companyName, jobId])
+  }, [session, startSession, company])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -83,10 +83,10 @@ export function WorkSimulatorChat({
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#94A3B8]">
-              Jornada laboral simulada
+              Jornada laboral simulada · {company.industry}
             </p>
             <h2 className="text-sm font-semibold text-[#F1F5F9]">
-              {roleTitle} · {companyName}
+              {company.vacancy} · {company.name}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -105,10 +105,7 @@ export function WorkSimulatorChat({
                 {formatTimeLeft(timeLeftSeconds)}
               </div>
             )}
-            <TaskNotificationBell
-              variant="header"
-              timeLeftSeconds={timeLeftSeconds}
-            />
+            <TaskNotificationBell variant="header" timeLeftSeconds={timeLeftSeconds} />
           </div>
         </div>
 
@@ -131,13 +128,13 @@ export function WorkSimulatorChat({
             onClick={() => setCompressedMode((v) => !v)}
             className={cn("h-7 text-xs", compressedMode && "bg-[#06B6D4] hover:bg-[#0891B2]")}
           >
-            {compressedMode ? "Demo rápido ON" : "Demo rápido"}
+            {compressedMode ? "Demo rapido ON" : "Demo rapido"}
           </Button>
         </div>
 
         {nextSlotLabel && (
           <p className="text-[10px] text-[#64748B]">
-            Próxima asignación automática: {nextSlotLabel}
+            Proxima asignacion automatica: {nextSlotLabel}
             {compressedMode && " · cada 8 min (modo demo)"}
           </p>
         )}
@@ -178,7 +175,9 @@ export function WorkSimulatorChat({
 
       {currentChallenge && (
         <div className="border-t border-amber-500/20 bg-amber-500/5 px-4 py-2">
-          <p className="text-xs font-medium text-amber-400">Tarea activa — entrega tu trabajo completo</p>
+          <p className="text-xs font-medium text-amber-400">
+            Tarea activa — entrega tu trabajo completo
+          </p>
           <p className="text-[11px] text-[#94A3B8]">{currentChallenge.deliverable_description}</p>
         </div>
       )}
@@ -191,7 +190,7 @@ export function WorkSimulatorChat({
             placeholder={
               currentChallenge
                 ? "Escribe tu entregable completo (correo, informe, plan...)"
-                : "Escribe «empezar jornada» para tu primera asignación..."
+                : "Escribe «empezar jornada» para tu primera asignacion..."
             }
             rows={3}
             className="min-h-[60px] resize-none border-[#334155] bg-[#1E293B] text-[#F1F5F9]"
@@ -220,7 +219,7 @@ export function WorkSimulatorChat({
         </div>
         <p className="mt-2 flex items-center gap-1 text-[10px] text-[#64748B]">
           <Sparkles className="h-3 w-3" />
-          Trabajos reales · evaluación exigente · notificaciones en horario laboral
+          Tareas de {company.industry} · evaluacion exigente · notificaciones en horario laboral
         </p>
       </footer>
     </div>

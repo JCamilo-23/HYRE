@@ -48,6 +48,42 @@ export const TASK_EXAMPLES_BY_ROLE: Record<string, string[]> = {
   ],
 }
 
+export const TASK_EXAMPLES_BY_INDUSTRY: Record<string, string[]> = {
+  default: [
+    "Informe de avance semanal con metricas y riesgos",
+    "Correo profesional a stakeholder con plan de accion",
+    "Documento de decision con trade-offs para el equipo",
+  ],
+  tecnologia: [
+    "Plan de mitigacion de incidente en produccion con pasos tecnicos",
+    "Code review con feedback accionable y criterios de merge",
+    "RFC de arquitectura para nueva feature con impacto en sistema",
+    "Postmortem de bug critico con prevencion futura",
+  ],
+  diseno: [
+    "Informe de usabilidad con hallazgos y recomendaciones priorizadas",
+    "Presentacion de propuesta visual con rationale de UX",
+    "Documento de design system con tokens y componentes",
+    "Plan de research con usuarios y guion de entrevistas",
+  ],
+  fintech: [
+    "Informe de cumplimiento regulatorio con checklist de controles",
+    "Respuesta a alerta de fraude con plan de contencion",
+    "Analisis de metricas de conversion con hipotesis de mejora",
+    "Comunicacion a usuarios sobre incidente de pagos",
+  ],
+}
+
+export const INDUSTRY_TASK_FOCUS: Record<string, string> = {
+  default: "entregables corporativos generales: informes, correos y planes de accion",
+  tecnologia:
+    "ingenieria de software: incidentes, code reviews, arquitectura, bugs en produccion y comunicacion tecnica",
+  diseno:
+    "diseno UX/UI: research, usabilidad, propuestas visuales, design systems y presentaciones a stakeholders",
+  fintech:
+    "producto financiero: compliance, fraude, metricas de pagos, riesgo operacional y comunicacion regulatoria",
+}
+
 export function storageKeyNotified(sessionId: string, hour: number, minute: number): string {
   return `work-sim-slot-${sessionId}-${hour}-${minute}`
 }

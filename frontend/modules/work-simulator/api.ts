@@ -28,6 +28,10 @@ export async function createWorkSimulatorSession(input: CreateWorkSimulatorSessi
       job_id: input.job_id ?? null,
       role_title: input.role_title ?? "Profesional",
       company_name: input.company_name ?? "Empresa",
+      industry: input.industry,
+      job_description: input.job_description,
+      culture: input.culture,
+      benefits: input.benefits,
     }),
   })
 }

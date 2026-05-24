@@ -7,7 +7,7 @@ import type {
   WorkSimulatorSession,
 } from "./types"
 import type { WorkBlock } from "./constants"
-import { TASK_EXAMPLES_BY_ROLE } from "./constants"
+import { TASK_EXAMPLES_BY_ROLE, TASK_EXAMPLES_BY_INDUSTRY } from "./constants"
 import {
   CHALLENGE_GENERATION_SYSTEM,
   OPENING_MESSAGE,
@@ -16,6 +16,7 @@ import {
   challengeGenerationPrompt,
 } from "./prompts"
 import { geminiChat, geminiGenerateJson, geminiGenerateText } from "@/lib/gemini-server"
+import { inferIndustryKey } from "@/lib/match-companies"
 
 function addMinutes(iso: string, minutes: number): string {
   return new Date(new Date(iso).getTime() + minutes * 60_000).toISOString()
@@ -35,13 +36,154 @@ export function getFallbackChallenge(
   slot?: GenerateChallengeOptions,
 ): WorkChallenge {
   const roleKey = inferRoleKey(context.role_title ?? "")
-  const examples = TASK_EXAMPLES_BY_ROLE[roleKey] ?? TASK_EXAMPLES_BY_ROLE.default
+  const industryKey = inferIndustryKey(context.industry)
+  const industryExamples =
+    TASK_EXAMPLES_BY_INDUSTRY[industryKey] ?? TASK_EXAMPLES_BY_INDUSTRY.default
+  const roleExamples = TASK_EXAMPLES_BY_ROLE[roleKey] ?? TASK_EXAMPLES_BY_ROLE.default
+  const examples = industryKey !== "default" ? industryExamples : roleExamples
   const example = examples[(index - 1) % examples.length]
   const now = new Date().toISOString()
   const block = (slot?.work_block ?? "morning") as WorkBlock
   const simTime = slot?.sim_time_label ?? "09:00"
+  const company = context.company_name ?? "la empresa"
+  const industry = context.industry ?? "General"
 
-  const templates: Omit<WorkChallenge, "id" | "deadline_at">[] = [
+  const industryTemplates: Record<string, Omit<WorkChallenge, "id" | "deadline_at">[]> = {
+    tecnologia: [
+      {
+        title: `[${simTime}] Incidente en produccion`,
+        type: "deliverable",
+        deliverable_type: "bugfix_plan",
+        urgency: "Urgente",
+        assigned_by: "Carlos — Engineering Manager",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `En ${company} (${industry}), el checkout falla para el 12% de usuarios. El equipo senior esta en reunion. Como ${context.role_title}, debes proponer mitigacion inmediata.`,
+        deliverable_description:
+          "Documenta: diagnostico, hipotesis root cause, pasos de mitigacion, rollback, comunicacion al equipo y prevencion post-incidente.",
+        acceptance_criteria: [
+          "Pasos tecnicos ordenados y accionables",
+          "Considera impacto en usuarios y SLA",
+          "Incluye prevencion futura",
+        ],
+        time_limit_minutes: 30,
+        xp: 520,
+        evaluation_criteria: ["pensamiento tecnico", "priorizacion", "comunicacion"],
+        min_quality_bar: "Plan ejecutable por un equipo de ingenieria en los proximos 30 minutos",
+      },
+      {
+        title: `[${simTime}] Code review bloqueante`,
+        type: "deliverable",
+        deliverable_type: "code_review",
+        urgency: "Alta",
+        assigned_by: "Ana — Tech Lead",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `Un PR critico para ${example} lleva 2 dias pendiente. Ana necesita tu revision escrita antes del deploy de las ${simTime}.`,
+        deliverable_description:
+          "Redacta feedback de code review: problemas encontrados, sugerencias concretas, riesgos de seguridad/performance y decision merge o changes requested.",
+        acceptance_criteria: [
+          "Feedback especifico y accionable",
+          "Menciona riesgos tecnicos reales",
+          "Tono profesional de par senior",
+        ],
+        time_limit_minutes: 25,
+        xp: 480,
+        evaluation_criteria: ["calidad tecnica", "claridad", "criterio"],
+        min_quality_bar: "Review que un dev senior podria usar para mejorar el PR sin reunion",
+      },
+    ],
+    diseno: [
+      {
+        title: `[${simTime}] Hallazgos de usabilidad`,
+        type: "deliverable",
+        deliverable_type: "report",
+        urgency: "Alta",
+        assigned_by: "Sofia — Head of Design",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `En ${company}, las pruebas de usabilidad del flujo de onboarding revelaron friccion. Sofia pide informe antes del ${simTime}.`,
+        deliverable_description:
+          "Informe UX: resumen ejecutivo, 3-5 hallazgos con evidencia, impacto en conversion, recomendaciones priorizadas y proximos pasos de diseno.",
+        acceptance_criteria: [
+          "Hallazgos concretos con impacto medible",
+          "Recomendaciones priorizadas",
+          "Lenguaje claro para PM y stakeholders",
+        ],
+        time_limit_minutes: 30,
+        xp: 500,
+        evaluation_criteria: ["analisis UX", "comunicacion", "priorizacion"],
+        min_quality_bar: "Informe presentable en revision de producto sin edicion mayor",
+      },
+      {
+        title: `[${simTime}] Propuesta visual para cliente`,
+        type: "deliverable",
+        deliverable_type: "document",
+        urgency: "Normal",
+        assigned_by: "Mateo — Creative Director",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `Cliente startup pide propuesta para ${example}. Mateo necesita documento escrito con rationale de diseno para la reunion de las 15:00.`,
+        deliverable_description:
+          "Documento de propuesta: objetivo del diseno, referencias conceptuales descritas, flujo de usuario, decisiones de UI y plan de iteracion.",
+        acceptance_criteria: [
+          "Rationale claro de decisiones de diseno",
+          "Flujo de usuario descrito paso a paso",
+          "Alineado con cultura creativa de la empresa",
+        ],
+        time_limit_minutes: 35,
+        xp: 460,
+        evaluation_criteria: ["creatividad", "claridad", "alineacion con negocio"],
+        min_quality_bar: "Propuesta que un director creativo enviaria al cliente",
+      },
+    ],
+    fintech: [
+      {
+        title: `[${simTime}] Alerta de transacciones sospechosas`,
+        type: "deliverable",
+        deliverable_type: "report",
+        urgency: "Urgente",
+        assigned_by: "Laura — Risk & Compliance",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `En ${company}, el sistema detecto un patron anomalo en pagos P2P. Compliance exige informe de contencion antes del ${simTime}.`,
+        deliverable_description:
+          "Informe de riesgo: descripcion del patron, usuarios/transacciones afectadas, acciones inmediatas de contencion, comunicacion regulatoria si aplica y plan de monitoreo.",
+        acceptance_criteria: [
+          "Acciones de contencion concretas",
+          "Considera cumplimiento y reputacion",
+          "Plan de seguimiento con responsables",
+        ],
+        time_limit_minutes: 25,
+        xp: 540,
+        evaluation_criteria: ["analisis de riesgo", "compliance", "decision bajo presion"],
+        min_quality_bar: "Informe que el equipo de riesgo usaria para actuar de inmediato",
+      },
+      {
+        title: `[${simTime}] Comunicacion post-incidente de pagos`,
+        type: "deliverable",
+        deliverable_type: "client_response",
+        urgency: "Urgente",
+        assigned_by: "Diego — Customer Operations",
+        work_block: block,
+        sim_time_label: simTime,
+        context: `Intermitencia en procesamiento de pagos afecto a comercios. ${company} debe responder a usuarios y partners antes del cierre de jornada.`,
+        deliverable_description:
+          "Redacta comunicacion oficial: reconocimiento del incidente, impacto, medidas tomadas, tiempos de resolucion estimados y canal de soporte prioritario.",
+        acceptance_criteria: [
+          "Tono profesional y transparente",
+          "Informacion precisa sin especulacion",
+          "Incluye proximos pasos para afectados",
+        ],
+        time_limit_minutes: 20,
+        xp: 480,
+        evaluation_criteria: ["comunicacion", "empatia", "precision"],
+        min_quality_bar: "Comunicacion publicable en status page o email masivo",
+      },
+    ],
+  }
+
+  const defaultTemplates: Omit<WorkChallenge, "id" | "deadline_at">[] = [
     {
       title: `[${simTime}] Correo urgente al cliente`,
       type: "deliverable",
@@ -100,6 +242,11 @@ export function getFallbackChallenge(
     },
   ]
 
+  const templates =
+    industryTemplates[industryKey] && industryKey !== "default"
+      ? industryTemplates[industryKey]
+      : defaultTemplates
+
   const base = templates[(index - 1) % templates.length]
   return {
     ...base,
@@ -132,6 +279,10 @@ export function createSessionData(input: {
   role_title?: string
   company_name?: string
   job_id?: string
+  industry?: string
+  job_description?: string
+  culture?: string[]
+  benefits?: string[]
 }): WorkSimulatorSession {
   const role = input.role_title ?? "Profesional"
   const company = input.company_name ?? "Empresa"
@@ -141,6 +292,10 @@ export function createSessionData(input: {
   const scenario_context: ScenarioContext = {
     role_title: role,
     company_name: company,
+    industry: input.industry,
+    job_description: input.job_description,
+    culture: input.culture,
+    benefits: input.benefits,
     job_id: input.job_id,
     phase: "jornada",
     challenges_completed: 0,
