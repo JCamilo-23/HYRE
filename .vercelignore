@@ -1,0 +1,10 @@
+backend/
+app/
+components/
+hooks/
+lib/
+public/
+styles/
+scripts/
+test_python.py
+pnpm-lock.yaml

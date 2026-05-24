@@ -53,8 +53,9 @@ Reglas:
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const startTime = Date.now()
 
   try {
@@ -66,7 +67,7 @@ export async function POST(
     const { data: cv, error: cvError } = await (supabase as any)
       .from("nova_cvs")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .eq("user_id", user.id)
       .single()
 
@@ -77,7 +78,7 @@ export async function POST(
     await (supabase as any)
       .from("nova_cvs")
       .update({ status: "processing" })
-      .eq("id", params.id)
+      .eq("id", id)
 
     // Call Gemini
     const apiKey = process.env.GEMINI_API_KEY
@@ -123,7 +124,7 @@ export async function POST(
     const { data: analysis, error: saveError } = await (supabase as any)
       .from("nova_analyses")
       .insert({
-        cv_id: params.id,
+        cv_id: id,
         user_id: user.id,
         score_general: clamp(analysisJson.score_general),
         score_ats: clamp(analysisJson.score_ats),
@@ -156,7 +157,7 @@ export async function POST(
         status: "ready",
         parsed_sections: { sections_detected: analysisJson.sections_detected ?? [] }
       })
-      .eq("id", params.id)
+      .eq("id", id)
 
     return NextResponse.json({ analysis_id: analysis.id, status: "ready" })
   } catch (err: any) {
@@ -166,7 +167,7 @@ export async function POST(
       await (supabase as any)
         .from("nova_cvs")
         .update({ status: "error", error_message: err.message })
-        .eq("id", params.id)
+        .eq("id", id)
     } catch {}
 
     console.error("[nova/cv/analyze]", err)
