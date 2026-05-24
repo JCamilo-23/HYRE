@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -16,7 +17,22 @@ from app.domain.entities.interview import (
     InterviewStatus,
     MessageRole,
 )
+from app.domain.agents.culture_fit import get_culture_fit_agent
+from app.domain.agents.registry import resolve_agent_type
+from app.domain.agents.company_personality import CompanyPersonalityLayer
+from app.domain.entities.interview_phases import (
+    InterviewPhase,
+    default_memory,
+    progress_pct,
+)
 from app.domain.repositories.interview_repository import get_interview_repository
+from app.domain.services.ai_interviewer_engine import (
+    AIInterviewerEngine,
+    InterviewerTurnResult,
+    get_ai_interviewer_engine,
+)
+from app.domain.services.interview_report_service import get_interview_report_service
+from app.domain.services.live_feedback_builder import build_live_feedback
 from app.domain.services.scoring_engine import ScoringEngine
 from app.infrastructure.analysis.audio_analyzer import AudioAnalyzer
 from app.infrastructure.analysis.facial_analyzer import FacialAnalyzer
@@ -35,11 +51,14 @@ class InterviewOrchestrator:
         self,
         *,
         gemini: GeminiInterviewAnalyzer | None = None,
+        interviewer: AIInterviewerEngine | None = None,
         audio: AudioAnalyzer | None = None,
         facial: FacialAnalyzer | None = None,
         scoring: ScoringEngine | None = None,
     ) -> None:
         self._gemini = gemini or GeminiInterviewAnalyzer()
+        self._interviewer = interviewer or get_ai_interviewer_engine()
+        self._reports = get_interview_report_service()
         self._audio = audio or AudioAnalyzer()
         self._facial = facial or FacialAnalyzer()
         self._scoring = scoring or ScoringEngine()
@@ -54,8 +73,16 @@ class InterviewOrchestrator:
         recruiter_id: str | None = None,
         job_context: str = "",
         required_skills: list[str] | None = None,
+        agent_type: str = "auto",
+        company_profile: dict | None = None,
     ) -> str:
         session_id = str(uuid.uuid4())
+        resolved_agent = resolve_agent_type(
+            requested=agent_type,
+            job_context=job_context,
+            required_skills=required_skills,
+        )
+        company = CompanyPersonalityLayer.resolve(company_profile).model_dump()
         session = {
             "id": session_id,
             "candidate_id": candidate_id,
@@ -64,10 +91,26 @@ class InterviewOrchestrator:
             "status": InterviewStatus.LIVE.value,
             "job_context": job_context,
             "required_skills": required_skills or [],
+            "agent_type_requested": agent_type,
+            "agent_type": resolved_agent,
+            "company_profile": company,
             "messages": [],
             "content_results": [],
             "latest_audio": None,
             "latest_facial": None,
+            "phase": InterviewPhase.GREETING.value,
+            "phase_label": "Introducción",
+            "phase_turn_count": 0,
+            "turn_count": 0,
+            "progress_pct": 0,
+            "difficulty": "medium",
+            "interview_memory": default_memory(),
+            "conversation_log": [],
+            "current_question": None,
+            "agent_display_name": "",
+            "culture_insights": {},
+            "culture_history": [],
+            "personality_profile": "",
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
         self._store.set(session_id, session)
@@ -85,6 +128,30 @@ class InterviewOrchestrator:
         except Exception as exc:
             logger.warning("Failed to persist interview create: %s", exc)
         return session_id
+
+    async def start_interview_turn(
+        self,
+        session_id: str,
+        *,
+        emit: EventEmitter | None = None,
+    ) -> dict[str, Any]:
+        """Opening greeting + first question from the AI interviewer."""
+        session = self._require_session(session_id)
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": True})
+
+        turn = await asyncio.to_thread(
+            self._interviewer._coordinator.build_opening_turn,
+            session,
+        )
+        turn.progress_pct = progress_pct(turn.phase, 0)
+        self._persist_session(session_id, session)
+
+        payload = self._interviewer_payload(session_id, turn)
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": False})
+            await self._emit_interviewer_turn(emit, payload)
+        return payload
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         return self._store.get(session_id)
@@ -109,6 +176,10 @@ class InterviewOrchestrator:
             transcript_confidence=confidence,
         ).model_dump()
         session["messages"].append(msg)
+        session.setdefault("conversation_log", []).append(
+            {"role": "candidate", "content": transcript}
+        )
+        session["turn_count"] = int(session.get("turn_count", 0)) + 1
 
         try:
             self._repo.append_message(
@@ -128,7 +199,8 @@ class InterviewOrchestrator:
             for m in session["messages"]
         ]
 
-        content = self._gemini.analyze_answer(
+        content = await asyncio.to_thread(
+            self._gemini.analyze_answer,
             candidate_answer=transcript,
             history=history,
             job_context=session["job_context"],
@@ -166,8 +238,154 @@ class InterviewOrchestrator:
 
         if emit:
             await emit("analysis.content", payload)
+            feedback = build_live_feedback(content, scores=partial)
+            session["last_live_feedback"] = feedback.model_dump()
+            await emit(
+                "live_feedback",
+                {
+                    "session_id": session_id,
+                    "feedback": feedback.model_dump(),
+                    "scores": partial,
+                },
+            )
+            await emit("scores_update", {"session_id": session_id, "scores": partial})
 
+        try:
+            culture = await asyncio.to_thread(
+                get_culture_fit_agent().analyze,
+                candidate_answer=transcript,
+                session=session,
+                content_analysis=content,
+            )
+            partial = get_culture_fit_agent().merge_into_scores(partial, culture)
+            session["culture_insights"] = culture.model_dump()
+            self._persist_session(session_id, session)
+            if emit:
+                await emit(
+                    "culture_insights",
+                    {
+                        "session_id": session_id,
+                        "insights": culture.model_dump(),
+                        "scores": partial,
+                    },
+                )
+        except Exception as exc:
+            logger.warning("Culture fit analysis failed: %s", exc)
+
+        interviewer_payload = await self._generate_interviewer_follow_up(
+            session_id,
+            session=session,
+            transcript=transcript,
+            content=content,
+            emit=emit,
+        )
+        payload["interviewer"] = interviewer_payload
         return payload
+
+    async def _generate_interviewer_follow_up(
+        self,
+        session_id: str,
+        *,
+        session: dict[str, Any],
+        transcript: str,
+        content: ContentAnalysisResult,
+        emit: EventEmitter | None = None,
+    ) -> dict[str, Any]:
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": True})
+
+        turn = await asyncio.to_thread(
+            self._interviewer._coordinator.build_next_turn,
+            session,
+            candidate_answer=transcript,
+            content_analysis=content,
+        )
+        turn.progress_pct = progress_pct(
+            session.get("phase", turn.phase),
+            int(session.get("phase_turn_count", 0)),
+        )
+        self._persist_session(session_id, session)
+
+        payload = self._interviewer_payload(session_id, turn)
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": False})
+            await self._emit_interviewer_turn(emit, payload)
+        return payload
+
+    async def request_interviewer_question(
+        self,
+        session_id: str,
+        *,
+        emit: EventEmitter | None = None,
+    ) -> dict[str, Any]:
+        """Manual next question using session memory."""
+        session = self._require_session(session_id)
+        last_candidate = ""
+        for m in reversed(session.get("messages", [])):
+            if m.get("role") == MessageRole.CANDIDATE.value:
+                last_candidate = m.get("content", "")
+                break
+        content = None
+        if session.get("content_results"):
+            content = ContentAnalysisResult.model_validate(session["content_results"][-1])
+
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": True})
+
+        turn = await asyncio.to_thread(
+            self._interviewer._coordinator.build_next_turn,
+            session,
+            candidate_answer=last_candidate or "El candidato pidió la siguiente pregunta.",
+            content_analysis=content,
+        )
+        self._persist_session(session_id, session)
+        payload = self._interviewer_payload(session_id, turn)
+
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": False})
+            await self._emit_interviewer_turn(emit, payload)
+        return payload
+
+    @staticmethod
+    def _interviewer_payload(session_id: str, turn: InterviewerTurnResult) -> dict[str, Any]:
+        return {
+            "session_id": session_id,
+            "message": turn.message,
+            "question": turn.question,
+            "phase": turn.phase,
+            "phase_label": turn.phase_label,
+            "difficulty": turn.difficulty,
+            "progress_pct": turn.progress_pct,
+            "follow_up_reason": turn.follow_up_reason,
+            "agent_type": turn.agent_type,
+            "agent_display_name": turn.agent_display_name,
+        }
+
+    @staticmethod
+    async def _emit_interviewer_turn(emit: EventEmitter, payload: dict[str, Any]) -> None:
+        await emit("interviewer_message", payload)
+        await emit(
+            "interviewer_question",
+            {
+                "session_id": payload["session_id"],
+                "question": payload["question"],
+                "agent_type": payload.get("agent_type"),
+                "agent_display_name": payload.get("agent_display_name"),
+                "phase": payload.get("phase"),
+                "phase_label": payload.get("phase_label"),
+                "progress_pct": payload.get("progress_pct"),
+            },
+        )
+        await emit(
+            "phase_update",
+            {
+                "session_id": payload["session_id"],
+                "phase": payload["phase"],
+                "phase_label": payload["phase_label"],
+                "progress_pct": payload["progress_pct"],
+                "difficulty": payload["difficulty"],
+            },
+        )
 
     async def process_audio_chunk(
         self,
@@ -251,6 +469,13 @@ class InterviewOrchestrator:
     ) -> dict[str, Any]:
         session = self._require_session(session_id)
         session["status"] = InterviewStatus.PROCESSING.value
+        try:
+            closing = await asyncio.to_thread(
+                self._interviewer._coordinator.build_closing_turn,
+                session,
+            )
+        except Exception as exc:
+            logger.warning("Closing turn generation failed: %s", exc)
         self._persist_session(session_id, session)
 
         latest_content = session["content_results"][-1] if session["content_results"] else {}
@@ -275,6 +500,16 @@ class InterviewOrchestrator:
         session["status"] = InterviewStatus.COMPLETED.value
         session["ended_at"] = datetime.now(timezone.utc).isoformat()
         session["final_score"] = final.model_dump()
+
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": True})
+
+        report = await asyncio.to_thread(
+            self._reports.generate,
+            session=session,
+            final_score=final,
+        )
+        session["final_report"] = report.model_dump()
         self._persist_session(session_id, session)
 
         try:
@@ -302,9 +537,11 @@ class InterviewOrchestrator:
             "type": "interview_complete",
             "session_id": session_id,
             "final_score": final.model_dump(),
+            "final_report": session.get("final_report"),
             "message_count": len(session["messages"]),
         }
         if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": False})
             await emit("interview.complete", summary)
         return summary
 

@@ -1,17 +1,22 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { motion } from "framer-motion"
-import { Mic, MicOff, Video, PhoneOff, Sparkles, Loader2, Radio } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { motion } from "framer-motion"
+import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useInterviewWebSocket } from "../use-interview-ws"
 import { useSpeechRecognition } from "../use-speech-recognition"
 import { useAudioCapture } from "../use-audio-capture"
-import { ScoreCards } from "./ScoreCards"
+import { useInterviewTimer } from "../hooks/use-interview-timer"
 import { RecruiterInsights } from "./RecruiterInsights"
 import { LiveTranscript } from "./LiveTranscript"
 import { AIInterviewerPanel } from "./AIInterviewerPanel"
+import { LiveFeedbackPanel } from "./LiveFeedbackPanel"
+import { InterviewReportPanel } from "./InterviewReportPanel"
+import { VideoCallStage } from "./VideoCallStage"
+import { InterviewControlsBar } from "./InterviewControlsBar"
+import { InterviewAnalyticsPanel } from "./InterviewAnalyticsPanel"
 
 interface InterviewRoomProps {
   sessionId: string
@@ -23,6 +28,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [micOn, setMicOn] = useState(true)
+  const [cameraOn, setCameraOn] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [answer, setAnswer] = useState("")
   const [status, setStatus] = useState<"live" | "ended">("live")
@@ -32,6 +38,18 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     scores,
     lastHint,
     lastQuestion,
+    liveFeedback,
+    finalReport,
+    reportLoading,
+    interviewEnded,
+    aiThinking,
+    aiSpeaking,
+    phaseLabel,
+    progressPct,
+    cultureInsights,
+    agentDisplayName,
+    agentType,
+    conversation,
     transcriptLines,
     contentSummary,
     events,
@@ -43,10 +61,16 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     endInterview,
   } = useInterviewWebSocket(sessionId)
 
+  const { formatted: timerLabel } = useInterviewTimer(status === "live" && connected)
+
+  const questionNumber = useMemo(
+    () => conversation.filter((e) => e.role === "interviewer").length || 1,
+    [conversation],
+  )
+
   useEffect(() => {
     const stored = sessionStorage.getItem(`hyre_opening_${sessionId}`)
     if (stored && !lastQuestion) {
-      // Opening question also arrives via WebSocket; sessionStorage is fallback
       sessionStorage.removeItem(`hyre_opening_${sessionId}`)
     }
   }, [sessionId, lastQuestion])
@@ -126,7 +150,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
   }, [stream])
 
   useEffect(() => {
-    if (!stream || !videoRef.current || !canvasRef.current) return
+    if (!stream || !videoRef.current || !canvasRef.current || !cameraOn) return
     const interval = setInterval(() => {
       const video = videoRef.current
       const canvas = canvasRef.current
@@ -139,7 +163,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
       sendVideoFrame(canvas.toDataURL("image/jpeg", 0.55))
     }, 3000)
     return () => clearInterval(interval)
-  }, [stream, sendVideoFrame])
+  }, [stream, sendVideoFrame, cameraOn])
 
   const handleSubmitAnswer = useCallback(() => {
     if (!answer.trim()) return
@@ -153,64 +177,108 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     stream?.getTracks().forEach((t) => t.stop())
   }, [endInterview, stream])
 
+  const handleToggleMic = useCallback(() => {
+    setMicOn((prev) => {
+      const next = !prev
+      stream?.getAudioTracks().forEach((track) => {
+        track.enabled = next
+      })
+      return next
+    })
+  }, [stream])
+
+  const handleToggleCamera = useCallback(() => {
+    setCameraOn((prev) => {
+      const next = !prev
+      stream?.getVideoTracks().forEach((track) => {
+        track.enabled = next
+      })
+      return next
+    })
+  }, [stream])
+
+  useEffect(() => {
+    if (interviewEnded) setStatus("ended")
+  }, [interviewEnded])
+
   const displayQuestion =
     lastQuestion ||
     (typeof window !== "undefined"
       ? sessionStorage.getItem(`hyre_opening_${sessionId}`)
       : null)
 
+  const isRecording = status === "live" && connected && (audioRecording || Boolean(stream))
+
   return (
-    <div className="min-h-screen bg-[#0a0614] text-white">
-      <div className="pointer-events-none fixed inset-0">
+    <motion.div className="min-h-screen bg-[#0a0614] text-white">
+      <motion.div className="pointer-events-none fixed inset-0">
         <div className="absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[#7C3AED]/15 blur-[120px]" />
-      </div>
+        <motion.div className="absolute bottom-0 right-0 h-[300px] w-[300px] rounded-full bg-[#06B6D4]/10 blur-[100px]" />
+      </motion.div>
 
       <header className="relative z-10 flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-8">
-        <Link href="/" className="font-display text-lg font-semibold">
+        <Link href="/interview" className="font-display text-lg font-semibold">
           HYRE <span className="text-[#7C3AED]">Interview AI</span>
         </Link>
-        <div className="flex items-center gap-2 text-xs">
-          <span
-            className={`h-2 w-2 rounded-full ${connected ? "bg-[#10B981]" : "bg-[#EF4444]"}`}
-          />
-          {connected ? "En vivo" : "Reconectando…"}
+        <div className="flex items-center gap-3 text-xs text-[#94A3B8]">
+          <span className="hidden sm:inline">{phaseLabel ?? "Entrevista en curso"}</span>
+          <span className="font-mono">{timerLabel}</span>
         </div>
       </header>
 
       <main className="relative z-10 mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-3 lg:px-8">
         <div className="space-y-4 lg:col-span-2">
-          <div className="relative aspect-video overflow-hidden rounded-3xl border border-white/10 bg-black/40">
-            <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
-            <canvas ref={canvasRef} className="hidden" />
-            {!stream && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-[#94A3B8]">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Activando cámara…
-              </div>
-            )}
-          </div>
+          <VideoCallStage
+            videoRef={videoRef}
+            stream={stream}
+            mediaError={mediaError}
+            agentName={agentDisplayName}
+            connected={connected}
+            aiThinking={aiThinking}
+            aiSpeaking={aiSpeaking}
+            isRecording={isRecording}
+            timerLabel={timerLabel}
+            progressPct={progressPct}
+            phaseLabel={phaseLabel}
+            questionNumber={questionNumber}
+          />
+          <canvas ref={canvasRef} className="hidden" aria-hidden />
 
-          <AIInterviewerPanel question={displayQuestion} connected={connected} />
+          <LiveFeedbackPanel feedback={liveFeedback} />
+
+          <AIInterviewerPanel
+            agentName={agentDisplayName}
+            agentRole={agentType}
+            question={displayQuestion}
+            connected={connected}
+            thinking={aiThinking}
+            speaking={aiSpeaking}
+            phaseLabel={phaseLabel}
+            progressPct={progressPct}
+            conversation={conversation}
+          />
 
           {contentSummary && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-[#CBD5E1]"
-            >
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-[#CBD5E1]">
               <span className="text-xs text-[#7C3AED]">Análisis Gemini · </span>
               {contentSummary}
-            </motion.div>
+            </div>
           )}
 
           <LiveTranscript lines={transcriptLines} interim={sttListening ? sttInterim : undefined} />
 
           {role === "candidate" && status === "live" && (
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <motion.div className="flex flex-col gap-3 sm:flex-row">
               <div className="flex-1 space-y-2">
                 <textarea
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSubmitAnswer()
+                    }
+                  }}
                   placeholder={
                     sttSupported
                       ? "Habla o escribe tu respuesta…"
@@ -219,21 +287,11 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
                   className="min-h-[80px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none"
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                {sttSupported && (
-                  <Button
-                    variant="outline"
-                    className={`rounded-full border-white/15 ${sttListening ? "border-[#06B6D4] text-[#06B6D4]" : ""}`}
-                    onClick={toggleStt}
-                  >
-                    <Radio className="mr-2 h-4 w-4" />
-                    {sttListening ? "Detener voz" : "Hablar (STT)"}
-                  </Button>
-                )}
+              <div className="flex flex-col gap-2 sm:w-44">
                 <Button
                   className="rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF]"
                   onClick={handleSubmitAnswer}
-                  disabled={!connected}
+                  disabled={!connected || !answer.trim()}
                 >
                   Enviar respuesta
                 </Button>
@@ -246,7 +304,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
                   Siguiente pregunta
                 </Button>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {lastHint && (
@@ -256,36 +314,18 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full border-white/15"
-              onClick={() => {
-                setMicOn((prev) => {
-                  const next = !prev
-                  stream?.getAudioTracks().forEach((track) => {
-                    track.enabled = next
-                  })
-                  return next
-                })
-              }}
-            >
-              {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="icon" className="rounded-full border-white/15">
-              <Video className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="destructive"
-              className="rounded-full"
-              onClick={handleEnd}
-              disabled={status === "ended"}
-            >
-              <PhoneOff className="mr-2 h-4 w-4" />
-              Finalizar
-            </Button>
-          </div>
+          <InterviewControlsBar
+            micOn={micOn}
+            cameraOn={cameraOn}
+            sttSupported={sttSupported}
+            sttListening={sttListening}
+            connected={connected}
+            ended={status === "ended"}
+            onToggleMic={handleToggleMic}
+            onToggleCamera={handleToggleCamera}
+            onToggleStt={toggleStt}
+            onEnd={handleEnd}
+          />
 
           {(mediaError || audioCaptureError) && (
             <div className="rounded-xl border border-[#F87171]/30 bg-[#F87171]/10 p-3 text-sm text-[#FCA5A5]">
@@ -308,24 +348,33 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
           )}
 
           {audioRecording && micOn && !audioCaptureError && (
-            <p className="text-xs text-[#64748B]">Micrófono activo · enviando audio al análisis</p>
+            <p className="text-xs text-[#64748B]">Micrófono activo · streaming de audio al análisis</p>
           )}
         </div>
 
         <aside className="space-y-4">
-          <h2 className="font-display text-lg font-semibold">
-            {role === "recruiter" ? "Panel reclutador" : "Análisis en tiempo real"}
-          </h2>
-          {role === "recruiter" ? (
-            <>
-              <RecruiterInsights scores={scores} events={events} sessionId={sessionId} />
-              <ScoreCards scores={scores} />
-            </>
-          ) : (
-            <ScoreCards scores={scores} />
+          <InterviewAnalyticsPanel scores={scores} liveFeedback={liveFeedback} role={role} />
+          {role === "recruiter" && (
+            <RecruiterInsights
+              scores={scores}
+              events={events}
+              sessionId={sessionId}
+              cultureInsights={cultureInsights}
+              personalityProfile={cultureInsights?.personality_profile}
+              agentDisplayName={agentDisplayName}
+            />
           )}
         </aside>
       </main>
-    </div>
+
+      {(status === "ended" || interviewEnded) && (
+        <InterviewReportPanel
+          sessionId={sessionId}
+          scores={scores}
+          report={finalReport}
+          loading={reportLoading || (interviewEnded && !finalReport)}
+        />
+      )}
+    </motion.div>
   )
 }

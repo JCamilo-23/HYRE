@@ -1,4 +1,8 @@
-import type { CreateSessionResponse, InterviewScores } from "./types"
+import type {
+  CreateSessionResponse,
+  InterviewReportResponse,
+  InterviewScores,
+} from "./types"
 import { getInterviewWsBaseUrl } from "@/lib/interview-backend"
 
 function sessionsPath(): string {
@@ -37,7 +41,29 @@ export async function checkInterviewBackend(): Promise<{
   }
 }
 
-export async function createInterviewSession(body: {
+export interface CreateSessionOptions {
+  candidate_id: string
+  job_context?: string
+  required_skills?: string[]
+  agent_type?: "auto" | "tech" | "creative" | "business"
+  company_profile?: {
+    name?: string
+    style?: "balanced" | "google" | "startup" | "creative" | "corporate"
+    intensity?: "relaxed" | "medium" | "intense"
+    values?: string[]
+  }
+}
+
+export async function fetchInterviewAgents(): Promise<
+  { id: string; name: string; label: string }[]
+> {
+  const res = await fetch("/api/interviews/agents", { cache: "no-store" })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.agents ?? []
+}
+
+export async function createInterviewSession(body: CreateSessionOptions & {
   candidate_id: string
   job_context?: string
   required_skills?: string[]
@@ -56,6 +82,8 @@ export async function createInterviewSession(body: {
           "trabajo en equipo",
         ],
         mode: "live",
+        agent_type: body.agent_type ?? "auto",
+        company_profile: body.company_profile ?? { style: "startup", intensity: "medium" },
       }),
     })
   } catch {
@@ -94,6 +122,21 @@ export async function getInterviewScores(sessionId: string): Promise<InterviewSc
     dimensions: data.dimensions,
     red_flags: data.red_flags,
   }
+}
+
+export async function getInterviewReport(
+  sessionId: string,
+): Promise<InterviewReportResponse> {
+  const res = await fetch(`/api/interviews/sessions/${sessionId}/report`, {
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof err.detail === "string" ? err.detail : "Informe no disponible aún",
+    )
+  }
+  return res.json()
 }
 
 export function getInterviewWsUrl(sessionId: string): string {

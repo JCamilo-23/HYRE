@@ -112,12 +112,14 @@ class GeminiClient:
         user_prompt: str,
         model_name: str | None = None,
         temperature: float = 0.4,
+        max_output_tokens: int = 2048,
     ) -> dict[str, Any]:
         raw = self.generate_text(
             system_instruction=system_instruction,
             user_prompt=user_prompt + "\n\nResponde ÚNICAMENTE con JSON válido, sin markdown.",
             model_name=model_name,
             temperature=temperature,
+            max_output_tokens=max_output_tokens,
         )
         cleaned = _strip_json_fences(raw)
         try:

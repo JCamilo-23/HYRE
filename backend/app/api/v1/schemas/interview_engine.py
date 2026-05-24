@@ -13,6 +13,8 @@ class CreateInterviewRequest(BaseModel):
     job_context: str = ""
     required_skills: list[str] = Field(default_factory=list)
     mode: str = "live"
+    agent_type: str = "auto"
+    company_profile: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateInterviewResponse(BaseModel):
@@ -21,6 +23,9 @@ class CreateInterviewResponse(BaseModel):
     status: str
     opening_question: str | None = None
     gemini_ready: bool = True
+    agent_type: str = "tech"
+    agent_display_name: str = ""
+    company_style: str = "balanced"
 
 
 class TranscriptEvent(BaseModel):
@@ -38,3 +43,11 @@ class InterviewScoreResponse(BaseModel):
     recommendation: str
     dimensions: dict[str, float]
     red_flags: list[str]
+
+
+
+class InterviewReportResponse(BaseModel):
+    session_id: str
+    report: dict[str, Any]
+    final_score: dict[str, Any] | None = None
+    generated_at: str | None = None
