@@ -13,7 +13,6 @@ import {
 } from "lucide-react"
 import { useEffect } from "react"
 import { Screen, UserData } from "@/lib/hyre-types"
-import { useNovaStore } from "@/store/nova-store"
 import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
 import { useTaskNotificationsStore } from "@/store/task-notifications-store"
 import { WORK_DAY_NOTIFICATION_SLOTS } from "@/modules/work-simulator/constants"
@@ -41,7 +40,6 @@ function Skeleton({ className }: { className?: string }) {
 }
 
 export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
-  const openNova = useNovaStore((s) => s.open)
   const syncUpcomingSlots = useTaskNotificationsStore((s) => s.syncUpcomingSlots)
   const currentHour = new Date().getHours()
   const { data: stats, isLoading } = useCandidateStats()

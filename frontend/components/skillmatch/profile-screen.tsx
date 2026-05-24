@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   Settings,
   Edit3,
-  Video,
-  ChevronRight,
   ChevronDown,
   Zap,
   Trophy,
@@ -15,6 +13,7 @@ import {
   Clock,
 } from "lucide-react"
 import { Screen, UserData } from "@/lib/hyre-types"
+import { CvReaderPanel } from "@/components/skillmatch/cv-reader-panel"
 
 interface ProfileScreenProps {
   onNavigate: (screen: Screen) => void
@@ -131,19 +130,8 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </div>
       </div>
 
-      {/* Video intro */}
-      <div className="px-6 mb-6">
-        <button className="w-full p-4 glass rounded-xl flex items-center gap-4 hover:bg-white/10 transition-colors">
-          <div className="w-12 h-12 rounded-xl bg-[#7C3AED]/20 flex items-center justify-center">
-            <Video className="w-6 h-6 text-[#7C3AED]" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-[#F1F5F9] font-medium">Video de presentacion</p>
-            <p className="text-[#94A3B8] text-xs">Candidatos con video tienen 3x mas matches</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-[#94A3B8]" />
-        </button>
-      </div>
+      {/* CV reader — candidatos */}
+      {!isCompany && <CvReaderPanel userName={userData.name} />}
 
       {/* Skills */}
       <div className="px-6 mb-6">

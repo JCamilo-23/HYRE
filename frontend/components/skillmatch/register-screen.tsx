@@ -181,7 +181,7 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
     <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
       {/* Back button */}
       <button
-        onClick={() => setMode("options")}
+        onClick={() => (onBack ? onBack() : setMode("options"))}
         className="flex items-center gap-2 text-[#94A3B8] hover:text-[#F1F5F9] transition-colors mb-8"
       >
         <ArrowLeft className="w-5 h-5" />
@@ -191,10 +191,12 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">
-          Crear cuenta
+          {isCompany ? "Crear cuenta empresarial" : "Crear cuenta"}
         </h1>
         <p className="text-[#94A3B8] text-sm">
-          Completa tus datos para comenzar
+          {isCompany
+            ? "Datos del contacto de la empresa. Luego completaras el perfil de tu organizacion."
+            : "Completa tus datos para comenzar"}
         </p>
       </div>
 
@@ -203,13 +205,13 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
         {/* Name */}
         <div>
           <label className="block text-[#F1F5F9] text-sm font-medium mb-2">
-            Nombre completo
+            {isCompany ? "Nombre del contacto" : "Nombre completo"}
           </label>
           <Input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Tu nombre"
+            placeholder={isCompany ? "Tu nombre como representante" : "Tu nombre"}
             className="h-12 bg-[#1A1A2E] border-[rgba(255,255,255,0.1)] text-[#F1F5F9] placeholder:text-[#475569] focus:border-[#7C3AED] input-focus"
           />
           {errors.name && (
@@ -309,7 +311,9 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
               className="mt-1 w-4 h-4 rounded border-[#475569] bg-[#1A1A2E] text-[#7C3AED] focus:ring-[#7C3AED]"
             />
             <span className="text-[#94A3B8] text-sm">
-              Acepto recibir notificaciones de oportunidades
+              {isCompany
+                ? "Acepto recibir notificaciones de candidatos y matches"
+                : "Acepto recibir notificaciones de oportunidades"}
             </span>
           </label>
         </div>
@@ -323,13 +327,20 @@ export function RegisterScreen({ userType, onComplete, onBack }: RegisterScreenP
       <Button
         onClick={handleSubmit}
         disabled={isLoading}
-        className="w-full h-14 btn-primary-gradient text-[#F1F5F9] font-medium text-base flex items-center justify-center gap-2 mt-6"
+        className={`w-full h-14 font-medium text-base flex items-center justify-center gap-2 mt-6 ${
+          isCompany ? "" : "btn-primary-gradient text-[#F1F5F9]"
+        }`}
+        style={
+          isCompany
+            ? { background: "linear-gradient(135deg, #06B6D4, #7C3AED)", color: "#F1F5F9" }
+            : undefined
+        }
       >
         {isLoading ? (
           <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
           <>
-            Crear cuenta
+            {isCompany ? "Continuar al perfil de empresa" : "Crear cuenta"}
             <ChevronRight className="w-5 h-5" />
           </>
         )}

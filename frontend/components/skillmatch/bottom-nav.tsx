@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Home, Target, Sparkles, User, Building2, ClipboardList, FileText } from "lucide-react"
+import { Home, Target, Sparkles, Video, User, Building2, ClipboardList } from "lucide-react"
 import { Screen } from "@/lib/hyre-types"
 
 interface BottomNavProps {
@@ -11,17 +11,17 @@ interface BottomNavProps {
 }
 
 const candidateNavItems = [
-  { id: "home" as Screen,       label: "Inicio",   icon: Home },
-  { id: "match" as Screen,      label: "Match",    icon: Target },
-  { id: "simulation" as Screen, label: "Simular",  icon: Sparkles },
-  { id: "nova" as Screen,       label: "Nova CV",  icon: FileText },
-  { id: "profile" as Screen,    label: "Perfil",   icon: User },
+  { id: "home" as Screen, label: "Inicio", icon: Home },
+  { id: "match" as Screen, label: "Match", icon: Target },
+  { id: "simulation" as Screen, label: "Simular", icon: Sparkles },
+  { id: "interview" as Screen, label: "Entrevista", icon: Video },
+  { id: "profile" as Screen, label: "Perfil", icon: User },
 ]
 
 const employerNavItems = [
-  { id: "employerHome" as Screen,       label: "Inicio",    icon: Building2 },
-  { id: "employerCandidates" as Screen, label: "Reportes",  icon: ClipboardList },
-  { id: "profile" as Screen,            label: "Empresa",   icon: User },
+  { id: "employerHome" as Screen, label: "Inicio", icon: Building2 },
+  { id: "employerCandidates" as Screen, label: "Reportes", icon: ClipboardList },
+  { id: "profile" as Screen, label: "Empresa", icon: User },
 ]
 
 export function BottomNav({ currentScreen, onNavigate, userType }: BottomNavProps) {
@@ -36,7 +36,9 @@ export function BottomNav({ currentScreen, onNavigate, userType }: BottomNavProp
           <div className="flex items-center justify-around">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = currentScreen === item.id
+              const isActive =
+                currentScreen === item.id ||
+                (item.id === "interview" && ["interview", "report"].includes(currentScreen))
 
               return (
                 <button
