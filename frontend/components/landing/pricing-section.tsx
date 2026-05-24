@@ -74,7 +74,7 @@ export function PricingSection() {
                     variant={plan.highlighted ? "default" : "outline"}
                     asChild
                   >
-                    <Link href={plan.highlighted ? "/register" : "/login"}>
+                    <Link href="/app">
                       {plan.cta}
                     </Link>
                   </Button>

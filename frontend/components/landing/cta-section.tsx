@@ -42,7 +42,7 @@ export function CtaSection() {
                   className="h-13 rounded-full bg-white px-9 text-base font-semibold text-[#0a0614] shadow-xl hover:bg-white/95"
                   asChild
                 >
-                  <Link href="/register">
+                  <Link href="/app">
                     Crear cuenta gratis
                     <ArrowRight className="h-4 w-4" />
                   </Link>
