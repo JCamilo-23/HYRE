@@ -9,16 +9,19 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Awaitable
 
 from app.domain.entities.interview import (
+    AudioAnalysisResult,
     ContentAnalysisResult,
-    FinalInterviewScore,
+    FacialAnalysisResult,
     InterviewMessage,
     InterviewStatus,
     MessageRole,
 )
+from app.domain.repositories.interview_repository import get_interview_repository
 from app.domain.services.scoring_engine import ScoringEngine
 from app.infrastructure.analysis.audio_analyzer import AudioAnalyzer
 from app.infrastructure.analysis.facial_analyzer import FacialAnalyzer
 from app.infrastructure.gemini.interview_analyzer import GeminiInterviewAnalyzer
+from app.infrastructure.session.interview_session_store import get_session_store
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,8 @@ class InterviewOrchestrator:
         self._audio = audio or AudioAnalyzer()
         self._facial = facial or FacialAnalyzer()
         self._scoring = scoring or ScoringEngine()
-        self._sessions: dict[str, dict[str, Any]] = {}
+        self._store = get_session_store()
+        self._repo = get_interview_repository()
 
     def create_session(
         self,
@@ -52,7 +56,7 @@ class InterviewOrchestrator:
         required_skills: list[str] | None = None,
     ) -> str:
         session_id = str(uuid.uuid4())
-        self._sessions[session_id] = {
+        session = {
             "id": session_id,
             "candidate_id": candidate_id,
             "recruiter_id": recruiter_id,
@@ -66,10 +70,27 @@ class InterviewOrchestrator:
             "latest_facial": None,
             "started_at": datetime.now(timezone.utc).isoformat(),
         }
+        self._store.set(session_id, session)
+        try:
+            self._repo.create(
+                session_id=session_id,
+                candidate_id=candidate_id,
+                recruiter_id=recruiter_id,
+                job_id=job_id,
+                metadata={
+                    "job_context": job_context,
+                    "required_skills": required_skills or [],
+                },
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist interview create: %s", exc)
         return session_id
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
-        return self._sessions.get(session_id)
+        return self._store.get(session_id)
+
+    def _persist_session(self, session_id: str, session: dict[str, Any]) -> None:
+        self._store.set(session_id, session)
 
     async def process_transcript(
         self,
@@ -82,16 +103,28 @@ class InterviewOrchestrator:
         session = self._require_session(session_id)
         start = time.perf_counter()
 
-        session["messages"].append(
-            InterviewMessage(
-                role=MessageRole.CANDIDATE,
+        msg = InterviewMessage(
+            role=MessageRole.CANDIDATE,
+            content=transcript,
+            transcript_confidence=confidence,
+        ).model_dump()
+        session["messages"].append(msg)
+
+        try:
+            self._repo.append_message(
+                session_id,
+                role=MessageRole.CANDIDATE.value,
                 content=transcript,
                 transcript_confidence=confidence,
-            ).model_dump()
-        )
+            )
+        except Exception as exc:
+            logger.warning("Message persist failed: %s", exc)
 
         history = [
-            {"role": "candidate" if m["role"] == MessageRole.CANDIDATE.value else "assistant", "content": m["content"]}
+            {
+                "role": "candidate" if m["role"] == MessageRole.CANDIDATE.value else "assistant",
+                "content": m["content"],
+            }
             for m in session["messages"]
         ]
 
@@ -105,6 +138,7 @@ class InterviewOrchestrator:
 
         partial = self._partial_score(session, content)
         latency_ms = int((time.perf_counter() - start) * 1000)
+        self._persist_session(session_id, session)
 
         payload = {
             "type": "content_analysis",
@@ -113,6 +147,22 @@ class InterviewOrchestrator:
             "content": content.model_dump(),
             "scores": partial,
         }
+
+        try:
+            self._repo.save_analytics(
+                session_id,
+                analyzer="gemini_pro",
+                raw_output=content.model_dump(),
+                latency_ms=latency_ms,
+            )
+            self._repo.record_event(
+                session_id,
+                event_type="analysis.content",
+                payload={"scores": partial},
+                latency_ms=latency_ms,
+            )
+        except Exception as exc:
+            logger.warning("Analytics persist failed: %s", exc)
 
         if emit:
             await emit("analysis.content", payload)
@@ -133,6 +183,8 @@ class InterviewOrchestrator:
 
         partial = self._partial_score(session)
         latency_ms = int((time.perf_counter() - start) * 1000)
+        self._persist_session(session_id, session)
+
         payload = {
             "type": "audio_analysis",
             "session_id": session_id,
@@ -140,6 +192,16 @@ class InterviewOrchestrator:
             "audio": audio_result.model_dump(),
             "scores": partial,
         }
+        try:
+            self._repo.save_analytics(
+                session_id,
+                analyzer="audio_librosa",
+                raw_output=audio_result.model_dump(),
+                latency_ms=latency_ms,
+            )
+        except Exception as exc:
+            logger.warning("Audio analytics persist failed: %s", exc)
+
         if emit:
             await emit("analysis.audio", payload)
         return payload
@@ -158,6 +220,8 @@ class InterviewOrchestrator:
 
         partial = self._partial_score(session)
         latency_ms = int((time.perf_counter() - start) * 1000)
+        self._persist_session(session_id, session)
+
         payload = {
             "type": "facial_analysis",
             "session_id": session_id,
@@ -165,6 +229,16 @@ class InterviewOrchestrator:
             "facial": facial_result.model_dump(),
             "scores": partial,
         }
+        try:
+            self._repo.save_analytics(
+                session_id,
+                analyzer="facial_mediapipe",
+                raw_output=facial_result.model_dump(),
+                latency_ms=latency_ms,
+            )
+        except Exception as exc:
+            logger.warning("Facial analytics persist failed: %s", exc)
+
         if emit:
             await emit("analysis.facial", payload)
         return payload
@@ -177,14 +251,12 @@ class InterviewOrchestrator:
     ) -> dict[str, Any]:
         session = self._require_session(session_id)
         session["status"] = InterviewStatus.PROCESSING.value
+        self._persist_session(session_id, session)
 
         latest_content = session["content_results"][-1] if session["content_results"] else {}
         content = ContentAnalysisResult.model_validate(
-            latest_content
-            or ContentAnalysisResult().model_dump()
+            latest_content or ContentAnalysisResult().model_dump()
         )
-
-        from app.domain.entities.interview import AudioAnalysisResult, FacialAnalysisResult
 
         audio = AudioAnalysisResult.model_validate(
             session.get("latest_audio") or AudioAnalysisResult().model_dump()
@@ -203,6 +275,28 @@ class InterviewOrchestrator:
         session["status"] = InterviewStatus.COMPLETED.value
         session["ended_at"] = datetime.now(timezone.utc).isoformat()
         session["final_score"] = final.model_dump()
+        self._persist_session(session_id, session)
+
+        try:
+            self._repo.update_status(
+                session_id,
+                InterviewStatus.COMPLETED.value,
+                ended_at=session["ended_at"],
+            )
+            self._repo.save_score(session_id, final.model_dump())
+            self._repo.save_training_row(
+                session_id,
+                feature_vector={
+                    "dimensions": final.dimensions,
+                    "message_count": len(session["messages"]),
+                },
+                label={
+                    "recommendation": final.recommendation,
+                    "overall_score": final.overall_score,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Finalize persist failed: %s", exc)
 
         summary = {
             "type": "interview_complete",
@@ -219,8 +313,6 @@ class InterviewOrchestrator:
         session: dict[str, Any],
         content: ContentAnalysisResult | None = None,
     ) -> dict[str, Any]:
-        from app.domain.entities.interview import AudioAnalysisResult, FacialAnalysisResult
-
         if content is None and session["content_results"]:
             content = ContentAnalysisResult.model_validate(session["content_results"][-1])
         elif content is None:
@@ -242,13 +334,12 @@ class InterviewOrchestrator:
         return final.model_dump()
 
     def _require_session(self, session_id: str) -> dict[str, Any]:
-        session = self._sessions.get(session_id)
+        session = self._store.get(session_id)
         if not session:
             raise KeyError(f"Interview session not found: {session_id}")
         return session
 
 
-# Singleton for WS handler (in-memory; production uses Redis session store)
 _orchestrator: InterviewOrchestrator | None = None
 
 

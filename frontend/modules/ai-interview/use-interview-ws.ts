@@ -6,6 +6,7 @@ import { getInterviewWsUrl } from "./api"
 
 export function useInterviewWebSocket(sessionId: string | null) {
   const wsRef = useRef<WebSocket | null>(null)
+  const reconnectAttempt = useRef(0)
   const [connected, setConnected] = useState(false)
   const [scores, setScores] = useState<InterviewScores | null>(null)
   const [lastHint, setLastHint] = useState<string | null>(null)
@@ -14,7 +15,8 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [error, setError] = useState<string | null>(null)
 
   const connect = useCallback(() => {
-    if (!sessionId || wsRef.current?.readyState === WebSocket.OPEN) return
+    if (!sessionId) return
+    if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     const ws = new WebSocket(getInterviewWsUrl(sessionId))
     wsRef.current = ws
@@ -22,6 +24,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
     ws.onopen = () => {
       setConnected(true)
       setError(null)
+      reconnectAttempt.current = 0
     }
 
     ws.onmessage = (ev) => {
@@ -50,7 +53,12 @@ export function useInterviewWebSocket(sessionId: string | null) {
     }
 
     ws.onerror = () => setError("WebSocket connection error")
-    ws.onclose = () => setConnected(false)
+    ws.onclose = () => {
+      setConnected(false)
+      const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 15000)
+      reconnectAttempt.current += 1
+      setTimeout(() => connect(), delay)
+    }
   }, [sessionId])
 
   useEffect(() => {
@@ -87,6 +95,13 @@ export function useInterviewWebSocket(sessionId: string | null) {
     [send],
   )
 
+  const sendAudioChunk = useCallback(
+    (base64: string) => {
+      if (base64) send({ type: "audio_chunk", data: base64 })
+    },
+    [send],
+  )
+
   const requestQuestion = useCallback(() => {
     send({ type: "request_question", difficulty: "medium" })
   }, [send])
@@ -104,6 +119,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
     error,
     sendTranscript,
     sendVideoFrame,
+    sendAudioChunk,
     requestQuestion,
     endInterview,
     reconnect: connect,

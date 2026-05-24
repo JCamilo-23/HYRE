@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { Mic, MicOff, Video, PhoneOff, Sparkles, Loader2 } from "lucide-react"
+import { Mic, MicOff, Video, PhoneOff, Sparkles, Loader2, Radio } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useInterviewWebSocket } from "../use-interview-ws"
+import { useSpeechRecognition } from "../use-speech-recognition"
+import { useAudioCapture } from "../use-audio-capture"
 import { ScoreCards } from "./ScoreCards"
+import { RecruiterInsights } from "./RecruiterInsights"
 
 interface InterviewRoomProps {
   sessionId: string
@@ -26,12 +29,40 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     scores,
     lastHint,
     lastQuestion,
+    events,
     error,
     sendTranscript,
     sendVideoFrame,
+    sendAudioChunk,
     requestQuestion,
     endInterview,
   } = useInterviewWebSocket(sessionId)
+
+  const handleFinalTranscript = useCallback(
+    (text: string, confidence: number) => {
+      sendTranscript(text, confidence)
+      setAnswer("")
+    },
+    [sendTranscript],
+  )
+
+  const {
+    supported: sttSupported,
+    listening: sttListening,
+    interim: sttInterim,
+    error: sttError,
+    toggle: toggleStt,
+  } = useSpeechRecognition({
+    lang: "es-ES",
+    onFinalTranscript: handleFinalTranscript,
+    onInterimTranscript: (text) => setAnswer(text),
+  })
+
+  useAudioCapture({
+    stream: micOn ? stream : null,
+    enabled: role === "candidate" && status === "live",
+    onChunk: sendAudioChunk,
+  })
 
   useEffect(() => {
     let active = true
@@ -97,7 +128,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
 
       <main className="relative z-10 mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-3 lg:px-8">
         <div className="space-y-4 lg:col-span-2">
-          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/40 aspect-video">
+          <div className="relative aspect-video overflow-hidden rounded-3xl border border-white/10 bg-black/40">
             <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             {!stream && (
@@ -121,20 +152,43 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
 
           {role === "candidate" && status === "live" && (
             <div className="flex flex-col gap-3 sm:flex-row">
-              <textarea
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Escribe tu respuesta (STT en producción)…"
-                className="min-h-[80px] flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none"
-              />
+              <div className="flex-1 space-y-2">
+                <textarea
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder={
+                    sttSupported
+                      ? "Habla o escribe tu respuesta…"
+                      : "Escribe tu respuesta (STT no disponible en este navegador)"
+                  }
+                  className="min-h-[80px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none"
+                />
+                {sttInterim && (
+                  <p className="text-xs text-[#64748B]">Escuchando: {sttInterim}</p>
+                )}
+              </div>
               <div className="flex flex-col gap-2">
+                {sttSupported && (
+                  <Button
+                    variant="outline"
+                    className={`rounded-full border-white/15 ${sttListening ? "border-[#06B6D4] text-[#06B6D4]" : ""}`}
+                    onClick={toggleStt}
+                  >
+                    <Radio className="mr-2 h-4 w-4" />
+                    {sttListening ? "Detener voz" : "Hablar (STT)"}
+                  </Button>
+                )}
                 <Button
                   className="rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF]"
                   onClick={handleSubmitAnswer}
                 >
                   Enviar respuesta
                 </Button>
-                <Button variant="outline" className="rounded-full border-white/15" onClick={requestQuestion}>
+                <Button
+                  variant="outline"
+                  className="rounded-full border-white/15"
+                  onClick={requestQuestion}
+                >
                   Siguiente pregunta
                 </Button>
               </div>
@@ -174,12 +228,23 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
             </Button>
           </div>
 
-          {error && <p className="text-sm text-[#F87171]">{error}</p>}
+          {(error || sttError) && (
+            <p className="text-sm text-[#F87171]">{error ?? sttError}</p>
+          )}
         </div>
 
         <aside className="space-y-4">
-          <h2 className="font-display text-lg font-semibold">Análisis en tiempo real</h2>
-          <ScoreCards scores={scores} />
+          <h2 className="font-display text-lg font-semibold">
+            {role === "recruiter" ? "Panel reclutador" : "Análisis en tiempo real"}
+          </h2>
+          {role === "recruiter" ? (
+            <>
+              <RecruiterInsights scores={scores} events={events} sessionId={sessionId} />
+              <ScoreCards scores={scores} />
+            </>
+          ) : (
+            <ScoreCards scores={scores} />
+          )}
         </aside>
       </main>
     </div>

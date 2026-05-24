@@ -8,7 +8,7 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketDisconnect as StarletteWSDisconnect
 
 from app.api.v1.schemas.interview_engine import (
@@ -17,6 +17,7 @@ from app.api.v1.schemas.interview_engine import (
     InterviewScoreResponse,
 )
 from app.core.config import settings
+from app.core.exceptions import RateLimitExceeded
 from app.domain.services.interview_orchestrator import get_interview_orchestrator
 from app.infrastructure.gemini.interview_analyzer import GeminiInterviewAnalyzer
 from app.infrastructure.redis.client import get_redis
@@ -35,7 +36,7 @@ def _check_rate_limit(session_id: str) -> None:
     key = f"rl:interview:{session_id}"
     count = redis.incr_rate_limit(key, 60)
     if count > RATE_LIMIT_MAX:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        raise RateLimitExceeded()
 
 
 @router.post("/sessions", response_model=CreateInterviewResponse)
@@ -117,7 +118,14 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             event_type = msg.get("type", "")
-            _check_rate_limit(session_id)
+            try:
+                _check_rate_limit(session_id)
+            except RateLimitExceeded:
+                await ws_manager.send_json(
+                    websocket,
+                    {"type": "error", "message": "Rate limit exceeded. Slow down."},
+                )
+                continue
 
             if event_type == "ping":
                 await ws_manager.send_json(websocket, {"type": "pong", "ts": time.time()})

@@ -64,3 +64,15 @@ Apply `migrations/001_ai_interview_engine.sql` in Supabase.
 - `ml_training_data` + `feature_store` tables ready
 - Recruiter feedback loop via `recruiter_feedback`
 - Model versioning via `model_versions`
+
+## Persistence (v1.1)
+
+- Sessions: in-memory + optional Redis cache (`interview:session:{id}`)
+- When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, interviews, messages, events, scores, and ML training rows are written to Postgres
+- Apply schema: `backend/migrations/001_ai_interview_engine.sql`
+
+## Frontend STT
+
+- Browser Web Speech API (`useSpeechRecognition`) streams final transcripts over WebSocket
+- `MediaRecorder` sends audio chunks every 5s for librosa analysis
+- Video frames sampled every 3s (JPEG 320×180) for MediaPipe facial analysis
