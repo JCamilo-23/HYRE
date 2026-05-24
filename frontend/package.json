@@ -9,7 +9,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "db:types": "supabase gen types typescript --local > types/database.ts",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "dev:clean": "rm -rf .next && next dev --turbopack"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
