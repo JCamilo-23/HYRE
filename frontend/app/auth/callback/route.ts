@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getSafeAppOrigin } from "@/lib/supabase/app-origin"
 import type { UserRole } from "@/modules/auth/types"
 import type { Database } from "@/types/database"
 
@@ -10,23 +11,44 @@ function parseRole(value: string | null): UserRole | null {
   return value === "candidate" || value === "recruiter" ? value : null
 }
 
+function redirectToApp(path: string, requestUrl: URL) {
+  const origin = getSafeAppOrigin(requestUrl.origin)
+  return NextResponse.redirect(`${origin}${path}`)
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
   const role = parseRole(url.searchParams.get("role"))
   const next = url.searchParams.get("next") ?? "/app"
-  const origin = url.origin
+
+  const oauthError = url.searchParams.get("error")
+  const oauthErrorDescription = url.searchParams.get("error_description")
+  if (oauthError) {
+    const reason = oauthErrorDescription ?? oauthError
+    return redirectToApp(
+      `/app?auth=error&reason=${encodeURIComponent(reason)}`,
+      url,
+    )
+  }
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/app?auth=error&reason=missing_code`)
+    return redirectToApp(
+      "/app?auth=error&reason=" +
+        encodeURIComponent(
+          "No se recibió código OAuth. Usa http://localhost:3000 (no 0.0.0.0) y verifica Redirect URLs en Supabase.",
+        ),
+      url,
+    )
   }
 
   const supabase = await createClient()
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    return NextResponse.redirect(
-      `${origin}/app?auth=error&reason=${encodeURIComponent(error.message)}`,
+    return redirectToApp(
+      `/app?auth=error&reason=${encodeURIComponent(error.message)}`,
+      url,
     )
   }
 
@@ -76,5 +98,6 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}${next}?auth=success`)
+  const nextPath = next.startsWith("/") ? next : "/app"
+  return redirectToApp(`${nextPath}?auth=success`, url)
 }

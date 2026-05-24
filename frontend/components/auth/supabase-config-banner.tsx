@@ -22,6 +22,7 @@ export function SupabaseConfigBanner() {
                 frontend/.env.local
               </code>
             </li>
+            <li>Abre la app en <strong className="text-amber-200">http://localhost:3000</strong> (no uses 0.0.0.0)</li>
             <li>Reinicia: npm run dev</li>
             <li>Habilita Google/Apple/LinkedIn en Authentication → Providers</li>
           </ol>

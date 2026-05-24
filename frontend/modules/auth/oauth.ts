@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client"
 import { assertSupabaseConfigured } from "@/lib/supabase/config-status"
+import { getSafeAppOrigin } from "@/lib/supabase/app-origin"
 import type { UserRole } from "./types"
 import { getAuthCallbackUrl, type OAuthProvider } from "./utils"
 
@@ -17,7 +18,7 @@ export async function signInWithOAuthProvider({
   assertSupabaseConfigured()
 
   const supabase = createClient()
-  const redirectTo = getAuthCallbackUrl(role, next, window.location.origin)
+  const redirectTo = getAuthCallbackUrl(role, next, getSafeAppOrigin())
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider,

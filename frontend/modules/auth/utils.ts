@@ -1,4 +1,5 @@
 import type { UserRole } from "./types"
+import { getAuthCallbackUrl as buildAuthCallbackUrl, getSafeAppOrigin } from "@/lib/supabase/app-origin"
 
 export type HyreUserType = "candidate" | "company"
 export type OAuthProvider = "google" | "apple" | "linkedin_oidc"
@@ -12,11 +13,7 @@ export function mapRoleToUserType(role: UserRole | null | undefined): HyreUserTy
 }
 
 export function getAuthCallbackUrl(role: UserRole, next = "/app", origin?: string): string {
-  const base =
-    origin ??
-    (typeof window !== "undefined"
-      ? window.location.origin
-      : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"))
-  const params = new URLSearchParams({ role, next })
-  return `${base}/auth/callback?${params.toString()}`
+  return buildAuthCallbackUrl(role, next, origin)
 }
+
+export { getSafeAppOrigin }
