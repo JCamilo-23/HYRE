@@ -76,7 +76,7 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.txt,application/pdf,text/plain"
+        accept=".pdf,.txt,.png,application/pdf,text/plain,image/png"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -100,7 +100,7 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
               ? "Analizando con IA..."
               : fileName
                 ? fileName
-                : "Sube tu CV (PDF/TXT) — la IA detecta puntos clave"}
+                : "Sube tu CV (PDF, PNG o TXT) — la IA detecta puntos clave"}
           </p>
         </div>
         {analysis ? (

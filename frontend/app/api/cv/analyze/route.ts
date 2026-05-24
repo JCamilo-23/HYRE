@@ -7,12 +7,14 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "text/plain",
+  "image/png",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ])
 
 const CV_SYSTEM_PROMPT = `Eres un experto en reclutamiento y analisis de CVs para HYRE.
-Analiza el curriculum y extrae informacion precisa en espanol (Latinoamerica).
+Analiza el curriculum (texto, PDF o imagen escaneada) y extrae informacion precisa en espanol (Latinoamerica).
+Si recibes una imagen, lee todo el texto visible del CV antes de analizar.
 Responde UNICAMENTE con JSON valido, sin markdown ni texto adicional.`
 
 const CV_JSON_SCHEMA = `{
@@ -141,26 +143,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "El archivo supera el limite de 5 MB." }, { status: 400 })
     }
 
-    if (!ALLOWED_MIME.has(file.type) && !file.name.match(/\.(pdf|txt|doc|docx)$/i)) {
+    if (!ALLOWED_MIME.has(file.type) && !file.name.match(/\.(pdf|txt|png|doc|docx)$/i)) {
       return NextResponse.json(
-        { error: "Formato no soportado. Usa PDF o TXT." },
+        { error: "Formato no soportado. Usa PDF, PNG o TXT." },
         { status: 400 },
       )
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf")
+    const isPng = file.type === "image/png" || file.name.endsWith(".png")
     const isTxt = file.type === "text/plain" || file.name.endsWith(".txt")
 
     if (!apiKey) {
       return NextResponse.json({ analysis: getCvFallbackAnalysis(file.name), fallback: true })
     }
 
-    if (isPdf) {
+    if (isPdf || isPng) {
       const analysis = await analyzeWithGemini(apiKey, [
         {
           inlineData: {
-            mimeType: "application/pdf",
+            mimeType: isPdf ? "application/pdf" : "image/png",
             data: buffer.toString("base64"),
           },
         },
@@ -187,7 +190,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "DOC/DOCX aun no soportado. Sube PDF o TXT." },
+      { error: "DOC/DOCX aun no soportado. Sube PDF, PNG o TXT." },
       { status: 400 },
     )
   } catch (error) {
