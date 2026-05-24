@@ -9,6 +9,7 @@ import {
   Zap,
   Trophy,
   TrendingUp,
+  FileText,
 } from "lucide-react"
 import { useEffect } from "react"
 import { Screen, UserData } from "@/lib/hyre-types"
@@ -224,6 +225,27 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
             <p className="text-[#94A3B8] text-xs">Score: 84</p>
           </motion.button>
         </div>
+      </div>
+
+      {/* Nova CV Banner */}
+      <div className="px-6 mb-8">
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          onClick={() => onNavigate("nova")}
+          className="w-full p-4 rounded-2xl flex items-center gap-4 text-left"
+          style={{ background: "linear-gradient(135deg, #7C3AED22 0%, #06B6D422 100%)", border: "1px solid #7C3AED44" }}
+        >
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[#F1F5F9] font-semibold text-sm">Nova CV Intelligence</p>
+            <p className="text-[#94A3B8] text-xs">Analiza tu CV con IA · Puntaje ATS, técnico y recruiter</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[#7C3AED]" />
+        </motion.button>
       </div>
     </div>
   )

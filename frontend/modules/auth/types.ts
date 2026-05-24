@@ -1,4 +1,4 @@
-﻿export type UserRole = "candidate" | "recruiter"
+﻿export type UserRole = "candidate" | "business"
 
 export interface Profile {
   id: string

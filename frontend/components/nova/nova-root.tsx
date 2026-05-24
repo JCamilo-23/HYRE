@@ -4,19 +4,22 @@ import { useEffect } from "react"
 import { NovaWidget } from "./nova-widget"
 import { useNovaStore } from "@/store/nova-store"
 
-interface NovaAppSyncProps {
-  isOnboarded: boolean
+interface CandidateNovaProps {
   showBottomNav: boolean
   userName: string
 }
 
-/** Sincroniza estado de la app con el store global de Nova */
-export function NovaAppSync({ isOnboarded, showBottomNav, userName }: NovaAppSyncProps) {
-  const { setVisible, setHasBottomNav, setUserName } = useNovaStore()
+/** Nova solo para candidatos — se monta dentro de HyreApp, no en el layout global */
+export function CandidateNova({ showBottomNav, userName }: CandidateNovaProps) {
+  const { setVisible, setHasBottomNav, setUserName, close } = useNovaStore()
 
   useEffect(() => {
-    setVisible(isOnboarded)
-  }, [isOnboarded, setVisible])
+    setVisible(true)
+    return () => {
+      setVisible(false)
+      close()
+    }
+  }, [setVisible, close])
 
   useEffect(() => {
     setHasBottomNav(showBottomNav)
@@ -26,10 +29,5 @@ export function NovaAppSync({ isOnboarded, showBottomNav, userName }: NovaAppSyn
     if (userName) setUserName(userName)
   }, [userName, setUserName])
 
-  return null
-}
-
-/** Montaje global persistente — layout root */
-export function NovaRoot() {
   return <NovaWidget />
 }

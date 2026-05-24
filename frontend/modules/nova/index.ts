@@ -6,4 +6,5 @@ export {
   NOVA_BUBBLE_GAP_PX,
 } from "./constants"
 export { useNovaChat } from "./hooks"
-export type { NovaMessage } from "./types"
+export { uploadCV, analyzeCV, listCVs, getAnalysis } from "./cv-service"
+export type { NovaMessage, NovaCV, NovaAnalysis } from "./types"
