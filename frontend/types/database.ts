@@ -1,6 +1,9 @@
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "12"
+  }
   public: {
     Tables: {
       profiles: {
