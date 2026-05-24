@@ -139,7 +139,7 @@ export function HyreApp() {
   const onboardingScreens: Screen[] = ["userType", "register", "onboarding", "companyOnboarding"]
   const hiddenNavScreens: Screen[] = ["interview", "simulation", "settings"]
   const showBottomNav = isOnboarded && !onboardingScreens.includes(currentScreen) && !hiddenNavScreens.includes(currentScreen)
-  const showCandidateNova = isOnboarded && userData.userType === "candidate"
+  const showCandidateNova = isOnboarded && userData.userType === "candidate" && !hiddenNavScreens.includes(currentScreen)
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">

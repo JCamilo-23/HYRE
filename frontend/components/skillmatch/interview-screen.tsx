@@ -58,15 +58,48 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [mediaError, setMediaError] = useState<string | null>(null)
 
   const bottomRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<Message[]>([])
 
-  // Speech-to-text
+  // Referencia para handleSend accesible desde el callback de STT
+  const pendingTranscriptRef = useRef<string>("")
+  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const triggerSend = useCallback((text: string) => {
+    if (!text.trim()) return
+    setInput("")
+    pendingTranscriptRef.current = ""
+    const updated: Message[] = [...messagesRef.current, { role: "user", content: text.trim() }]
+    setMessages(updated)
+    setLoading(true)
+    fetch("/api/interviews/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: updated, jobContext: JOB_CONTEXT }),
+    })
+      .then(r => r.json())
+      .then(({ reply, finished }: { reply: string; finished?: boolean }) => {
+        const final: Message[] = [...updated, { role: "assistant", content: reply }]
+        setMessages(final)
+        messagesRef.current = final
+        setLoading(false)
+        if (finished) setTimeout(() => generateReport(final), 1200)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  // Speech-to-text — transcribe y envía automáticamente tras pausa de 1.5s
   const { supported: sttSupported, listening: sttListening, interim: sttInterim, toggle: toggleStt } = useSpeechRecognition({
     lang: "es-ES",
-    onFinalTranscript: (text) => setInput((prev) => (prev ? prev + " " + text : text)),
-    onInterimTranscript: (text) => setInput((prev) => {
-      const base = prev.replace(/\s*\[.*\]$/, "")
-      return base ? `${base} [${text}]` : `[${text}]`
-    }),
+    onFinalTranscript: (text) => {
+      if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+      pendingTranscriptRef.current = (pendingTranscriptRef.current + " " + text).trim()
+      setInput(pendingTranscriptRef.current)
+      autoSendTimerRef.current = setTimeout(() => {
+        const toSend = pendingTranscriptRef.current
+        if (toSend) triggerSend(toSend)
+      }, 1500)
+    },
+    onInterimTranscript: (text) => setInput((pendingTranscriptRef.current + " " + text).trim()),
   })
 
   // Timer
@@ -75,6 +108,9 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     const id = setInterval(() => setTimer((t) => t + 1), 1000)
     return () => clearInterval(id)
   }, [stage])
+
+  // Sync ref con state para callbacks
+  useEffect(() => { messagesRef.current = messages }, [messages])
 
   // Auto-scroll
   useEffect(() => {
@@ -126,41 +162,30 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     })
   }, [stream])
 
-  const askGemini = async (history: Message[]) => {
+  const handleStart = async () => {
+    setLoading(true)
     const res = await fetch("/api/interviews/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, jobContext: JOB_CONTEXT }),
+      body: JSON.stringify({ history: [], jobContext: JOB_CONTEXT }),
     })
-    return res.json() as Promise<{ reply: string; finished?: boolean }>
-  }
-
-  const handleStart = async () => {
-    setLoading(true)
-    const { reply } = await askGemini([])
-    setMessages([{ role: "assistant", content: reply }])
+    const { reply } = await res.json()
+    const initial = [{ role: "assistant" as const, content: reply }]
+    setMessages(initial)
+    messagesRef.current = initial
     setLoading(false)
     setStage("live")
   }
 
-  const handleSend = async () => {
-    const text = input.replace(/\s*\[.*\]$/, "").trim()
+  const handleSend = () => {
+    const text = input.replace(/\s*\[.*?\]\s*$/, "").trim()
     if (!text || loading) return
-    setInput("")
-
-    const updated: Message[] = [...messages, { role: "user", content: text }]
-    setMessages(updated)
-    setLoading(true)
-
-    const { reply, finished } = await askGemini(updated)
-    const final: Message[] = [...updated, { role: "assistant", content: reply }]
-    setMessages(final)
-    setLoading(false)
-
-    if (finished) setTimeout(() => generateReport(final), 1200)
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+    triggerSend(text)
   }
 
-  const generateReport = async (history: Message[]) => {
+  const generateReport = useCallback(async (history: Message[]) => {
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
     stream?.getTracks().forEach(t => t.stop())
     setStream(null)
     setStage("processing")
@@ -172,7 +197,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     const data = await res.json()
     setReport(data)
     setStage("report")
-  }
+  }, [stream])
 
   // ── PREP ──────────────────────────────────────────────────────────────────
   if (stage === "prep") {
