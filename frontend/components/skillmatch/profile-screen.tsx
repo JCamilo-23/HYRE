@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   Settings,
   Edit3,
-  Video,
-  ChevronRight,
   ChevronDown,
   Zap,
   Trophy,
@@ -15,6 +13,7 @@ import {
   Clock,
 } from "lucide-react"
 import { Screen, UserData } from "@/lib/hyre-types"
+import { CvReaderPanel } from "@/components/skillmatch/cv-reader-panel"
 
 interface ProfileScreenProps {
   onNavigate: (screen: Screen) => void
@@ -59,16 +58,25 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
   }
 
   const initials = getInitials(userData.name)
-  const displayName = userData.name || "Usuario"
+  const displayName = userData.userType === "company" && userData.company?.companyName
+    ? userData.company.companyName
+    : userData.name || "Usuario"
   const displayEmail = userData.email || "usuario@hyre.com"
+  const isCompany = userData.userType === "company"
 
   return (
     <div className="min-h-screen pb-24 safe-area-top">
       {/* Header */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-[#F1F5F9]">Mi perfil</h1>
-          <button className="w-10 h-10 glass rounded-full flex items-center justify-center">
+          <h1 className="text-2xl font-semibold text-[#F1F5F9]">
+            {isCompany ? "Perfil de empresa" : "Mi perfil"}
+          </h1>
+          <button
+            onClick={() => onNavigate("settings")}
+            className="w-10 h-10 glass rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+            aria-label="Configuracion"
+          >
             <Settings className="w-5 h-5 text-[#94A3B8]" />
           </button>
         </div>
@@ -87,7 +95,9 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
               <h2 className="text-xl font-semibold text-[#F1F5F9]">{displayName}</h2>
               <p className="text-[#94A3B8] text-sm">{displayEmail}</p>
               <p className="text-[#475569] text-xs">
-                {userData.userType === "candidate" ? "Buscando oportunidades" : "Empresa"}
+                {isCompany
+                  ? `Contacto: ${userData.name || "Representante"}`
+                  : "Buscando oportunidades"}
               </p>
             </div>
           </div>
@@ -120,19 +130,8 @@ export function ProfileScreen({ onNavigate, userData }: ProfileScreenProps) {
         </div>
       </div>
 
-      {/* Video intro */}
-      <div className="px-6 mb-6">
-        <button className="w-full p-4 glass rounded-xl flex items-center gap-4 hover:bg-white/10 transition-colors">
-          <div className="w-12 h-12 rounded-xl bg-[#7C3AED]/20 flex items-center justify-center">
-            <Video className="w-6 h-6 text-[#7C3AED]" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-[#F1F5F9] font-medium">Video de presentacion</p>
-            <p className="text-[#94A3B8] text-xs">Candidatos con video tienen 3x mas matches</p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-[#94A3B8]" />
-        </button>
-      </div>
+      {/* CV reader — candidatos */}
+      {!isCompany && <CvReaderPanel userName={userData.name} />}
 
       {/* Skills */}
       <div className="px-6 mb-6">
