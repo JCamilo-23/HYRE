@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WorkSimulatorChat } from "@/components/work-simulator/work-simulator-chat"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 
 interface SimulationScreenProps {
   onNavigate: (screen: Screen) => void

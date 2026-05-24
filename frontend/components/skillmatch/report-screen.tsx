@@ -14,7 +14,7 @@ import {
   Share2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 import { useNovaStore } from "@/store/nova-store"
 
 interface ReportScreenProps {

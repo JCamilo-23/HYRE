@@ -1,14 +1,14 @@
 "use client"
 
 import { useEffect } from "react"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 import { useNovaStore } from "@/store/nova-store"
 
 interface MentorScreenProps {
   onNavigate: (screen: Screen) => void
 }
 
-/** Ruta legacy: abre el panel flotante de Nova y vuelve al inicio */
+/** Abre el panel flotante de Nova y vuelve al inicio */
 export function MentorScreen({ onNavigate }: MentorScreenProps) {
   const open = useNovaStore((s) => s.open)
 

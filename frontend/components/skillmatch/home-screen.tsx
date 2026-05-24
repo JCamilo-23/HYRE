@@ -11,12 +11,12 @@ import {
   Trophy,
   TrendingUp,
 } from "lucide-react"
-import { Screen, UserData } from "@/app/page"
+import { useEffect } from "react"
+import { Screen, UserData } from "@/lib/hyre-types"
 import { useNovaStore } from "@/store/nova-store"
 import { TaskNotificationBell } from "@/components/notifications/task-notification-bell"
 import { useTaskNotificationsStore } from "@/store/task-notifications-store"
 import { WORK_DAY_NOTIFICATION_SLOTS } from "@/modules/work-simulator/constants"
-import { useEffect } from "react"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void
