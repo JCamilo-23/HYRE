@@ -4,23 +4,22 @@ import { useEffect } from "react"
 import { NovaWidget } from "./nova-widget"
 import { useNovaStore } from "@/store/nova-store"
 
-interface NovaAppSyncProps {
-  isOnboarded: boolean
+interface EmployerNovaProps {
   showBottomNav: boolean
   userName: string
-  userType?: "candidate" | "company" | null
 }
 
-/** Sincroniza estado de la app con el store global de Nova */
-export function NovaAppSync({ isOnboarded, showBottomNav, userName, userType }: NovaAppSyncProps) {
+/** Nova solo para empresas — montaje local, no global */
+export function EmployerNova({ showBottomNav, userName }: EmployerNovaProps) {
   const { setVisible, setHasBottomNav, setUserName, close } = useNovaStore()
 
   useEffect(() => {
-    const isEmployer = userType === "company"
-    const shouldShow = isOnboarded && isEmployer
-    setVisible(shouldShow)
-    if (!shouldShow) close()
-  }, [isOnboarded, userType, setVisible, close])
+    setVisible(true)
+    return () => {
+      setVisible(false)
+      close()
+    }
+  }, [setVisible, close])
 
   useEffect(() => {
     setHasBottomNav(showBottomNav)
@@ -30,10 +29,5 @@ export function NovaAppSync({ isOnboarded, showBottomNav, userName, userType }: 
     if (userName) setUserName(userName)
   }, [userName, setUserName])
 
-  return null
-}
-
-/** Montaje global persistente — layout root */
-export function NovaRoot() {
   return <NovaWidget />
 }

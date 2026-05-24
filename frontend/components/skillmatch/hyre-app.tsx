@@ -15,7 +15,7 @@ import { ReportScreen } from "@/components/skillmatch/report-screen"
 import { ProfileScreen } from "@/components/skillmatch/profile-screen"
 import { MentorScreen } from "@/components/skillmatch/mentor-screen"
 import { BottomNav } from "@/components/skillmatch/bottom-nav"
-import { NovaAppSync } from "@/components/nova/nova-root"
+import { EmployerNova } from "@/components/nova/nova-root"
 
 import type { CompanyProfile, Screen, UserData } from "@/lib/hyre-types"
 
@@ -109,15 +109,13 @@ export function HyreApp() {
 
   const onboardingScreens: Screen[] = ["userType", "register", "companyOnboarding"]
   const showBottomNav = isOnboarded && !onboardingScreens.includes(currentScreen) && !["interview", "simulation"].includes(currentScreen)
+  const showEmployerNova = isOnboarded && userData.userType === "company"
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      <NovaAppSync
-        isOnboarded={isOnboarded}
-        showBottomNav={showBottomNav}
-        userName={userData.name}
-        userType={userData.userType}
-      />
+      {showEmployerNova && (
+        <EmployerNova showBottomNav={showBottomNav} userName={userData.name} />
+      )}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#7C3AED]/15 rounded-full blur-[120px] opacity-50" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#06B6D4]/15 rounded-full blur-[100px] opacity-40" />
