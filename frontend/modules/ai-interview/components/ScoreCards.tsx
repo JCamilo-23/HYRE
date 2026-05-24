@@ -15,34 +15,82 @@ const metrics = [
   { key: "authenticity_score", label: "Autenticidad", color: "#EC4899" },
 ] as const
 
+const dimensionLabels: Record<string, string> = {
+  technical_depth: "Técnica",
+  communication: "Comunicación",
+  reasoning: "Razonamiento",
+  cultural_fit: "Cultural fit",
+  leadership: "Liderazgo",
+  eye_contact: "Contacto visual",
+  vocal_confidence: "Voz",
+}
+
 export function ScoreCards({ scores }: ScoreCardsProps) {
   if (!scores) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-[#64748B]">
+        <div className="mx-auto mb-3 h-8 w-8 animate-pulse rounded-full bg-[#7C3AED]/30" />
         Esperando análisis en tiempo real…
       </div>
     )
   }
 
+  const dimensions = scores.dimensions ?? {}
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {metrics.map((m, i) => (
-        <motion.div
-          key={m.key}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05 }}
-          className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl"
-        >
-          <p className="text-xs text-[#64748B]">{m.label}</p>
-          <p className="font-display text-2xl font-semibold" style={{ color: m.color }}>
-            {Math.round(scores[m.key as keyof InterviewScores] as number)}%
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {metrics.map((m, i) => (
+          <motion.div
+            key={m.key}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl"
+          >
+            <p className="text-xs text-[#64748B]">{m.label}</p>
+            <motion.p
+              key={scores[m.key as keyof InterviewScores] as number}
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="font-display text-2xl font-semibold"
+              style={{ color: m.color }}
+            >
+              {Math.round(scores[m.key as keyof InterviewScores] as number)}%
+            </motion.p>
+          </motion.div>
+        ))}
+      </div>
+
+      {Object.keys(dimensions).length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+            Dimensiones en vivo
           </p>
-        </motion.div>
-      ))}
-      <div className="col-span-full rounded-2xl border border-[#7C3AED]/30 bg-[#7C3AED]/10 p-4">
+          <div className="space-y-2.5">
+            {Object.entries(dimensions).map(([key, value]) => (
+              <div key={key}>
+                <div className="mb-1 flex justify-between text-xs">
+                  <span className="text-[#CBD5E1]">{dimensionLabels[key] ?? key}</span>
+                  <span className="text-[#64748B]">{Math.round(value)}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <motion.div
+                    className="h-full rounded-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4]"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, value)}%` }}
+                    transition={{ duration: 0.4 }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-[#7C3AED]/30 bg-[#7C3AED]/10 p-4">
         <p className="text-xs uppercase tracking-wider text-[#C4B5FD]">Recomendación IA</p>
-        <p className="mt-1 font-display text-lg font-semibold text-white capitalize">
+        <p className="mt-1 font-display text-lg font-semibold capitalize text-white">
           {scores.recommendation.replace(/_/g, " ")}
         </p>
         {scores.red_flags && scores.red_flags.length > 0 && (

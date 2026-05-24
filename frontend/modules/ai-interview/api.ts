@@ -1,4 +1,8 @@
-import type { CreateSessionResponse, InterviewScores } from "./types"
+import type {
+  CreateSessionResponse,
+  InterviewReportResponse,
+  InterviewScores,
+} from "./types"
 import { getInterviewWsBaseUrl } from "@/lib/interview-backend"
 
 function sessionsPath(): string {
@@ -94,6 +98,21 @@ export async function getInterviewScores(sessionId: string): Promise<InterviewSc
     dimensions: data.dimensions,
     red_flags: data.red_flags,
   }
+}
+
+export async function getInterviewReport(
+  sessionId: string,
+): Promise<InterviewReportResponse> {
+  const res = await fetch(`/api/interviews/sessions/${sessionId}/report`, {
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof err.detail === "string" ? err.detail : "Informe no disponible aún",
+    )
+  }
+  return res.json()
 }
 
 export function getInterviewWsUrl(sessionId: string): string {

@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type {
   ConversationEntry,
   InterviewPhaseId,
+  InterviewReport,
   InterviewScores,
   InterviewWsEvent,
+  LiveFeedback,
 } from "./types"
+import { getInterviewReport } from "./api"
 import { getInterviewWsUrl } from "./api"
 
 export function useInterviewWebSocket(sessionId: string | null) {
@@ -17,6 +20,10 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [lastHint, setLastHint] = useState<string | null>(null)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
   const [lastInterviewerMessage, setLastInterviewerMessage] = useState<string | null>(null)
+  const [liveFeedback, setLiveFeedback] = useState<LiveFeedback | null>(null)
+  const [finalReport, setFinalReport] = useState<InterviewReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [interviewEnded, setInterviewEnded] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
   const [phase, setPhase] = useState<InterviewPhaseId | null>(null)
   const [phaseLabel, setPhaseLabel] = useState<string | null>(null)
@@ -31,6 +38,23 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const appendConversation = useCallback((entry: ConversationEntry) => {
     setConversation((prev) => [...prev.slice(-24), entry])
   }, [])
+
+  const applyScores = useCallback((next: InterviewScores) => {
+    setScores(next)
+  }, [])
+
+  const loadReport = useCallback(async (sid: string) => {
+    setReportLoading(true)
+    try {
+      const data = await getInterviewReport(sid)
+      setFinalReport(data.report)
+      if (data.final_score) applyScores(data.final_score)
+    } catch {
+      /* report may arrive via WS */
+    } finally {
+      setReportLoading(false)
+    }
+  }, [applyScores])
 
   const connect = useCallback(() => {
     if (!sessionId) return
@@ -52,17 +76,22 @@ export function useInterviewWebSocket(sessionId: string | null) {
           message?: string
           question?: string
           thinking?: boolean
+          feedback?: LiveFeedback
+          final_report?: InterviewReport
         }
         setEvents((prev) => [...prev.slice(-50), data])
 
-        if ("scores" in data && data.scores) {
-          setScores(data.scores as InterviewScores)
-        }
-        if (data.type === "coaching_hint" && "hint" in data) {
-          setLastHint(data.hint)
-        }
+        const scorePayload =
+          ("scores" in data && data.scores) ||
+          ("final_score" in data && data.final_score)
+        if (scorePayload) applyScores(scorePayload as InterviewScores)
+
+        if (data.type === "coaching_hint" && "hint" in data) setLastHint(data.hint)
         if (data.type === "ai_thinking" && "thinking" in data) {
           setAiThinking(Boolean(data.thinking))
+        }
+        if (data.type === "live_feedback" && data.feedback) {
+          setLiveFeedback(data.feedback)
         }
         if (data.type === "phase_update") {
           if ("phase" in data && data.phase) setPhase(data.phase)
@@ -78,12 +107,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
           if (data.phase_label) setPhaseLabel(data.phase_label)
           if (data.phase) setPhase(data.phase as InterviewPhaseId)
           if (typeof data.progress_pct === "number") setProgressPct(data.progress_pct)
-          appendConversation({
-            role: "interviewer",
-            content: msg,
-            question: q,
-            phase: data.phase,
-          })
+          appendConversation({ role: "interviewer", content: msg, question: q, phase: data.phase })
         }
         if (data.type === "interviewer_question" && "question" in data) {
           setLastQuestion(data.question)
@@ -91,9 +115,11 @@ export function useInterviewWebSocket(sessionId: string | null) {
           if (data.phase) setPhase(data.phase as InterviewPhaseId)
           if (typeof data.progress_pct === "number") setProgressPct(data.progress_pct)
         }
-        if (data.type === "interview_complete" && "final_score" in data) {
-          setScores(data.final_score as InterviewScores)
+        if (data.type === "interview_complete") {
+          setInterviewEnded(true)
           setAiThinking(false)
+          if (data.final_report) setFinalReport(data.final_report)
+          else if (sessionId) void loadReport(sessionId)
         }
         if (data.type === "content_analysis" && data.content?.summary) {
           setContentSummary(data.content.summary)
@@ -114,7 +140,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
       reconnectAttempt.current += 1
       setTimeout(() => connect(), delay)
     }
-  }, [sessionId, appendConversation])
+  }, [sessionId, appendConversation, applyScores, loadReport])
 
   useEffect(() => {
     connect()
@@ -170,6 +196,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
   }, [send, difficulty])
 
   const endInterview = useCallback(() => {
+    setAiThinking(true)
     send({ type: "end_interview" })
   }, [send])
 
@@ -179,6 +206,10 @@ export function useInterviewWebSocket(sessionId: string | null) {
     lastHint,
     lastQuestion,
     lastInterviewerMessage,
+    liveFeedback,
+    finalReport,
+    reportLoading,
+    interviewEnded,
     aiThinking,
     phase,
     phaseLabel,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -27,6 +28,8 @@ from app.domain.services.ai_interviewer_engine import (
     InterviewerTurnResult,
     get_ai_interviewer_engine,
 )
+from app.domain.services.interview_report_service import get_interview_report_service
+from app.domain.services.live_feedback_builder import build_live_feedback
 from app.domain.services.scoring_engine import ScoringEngine
 from app.infrastructure.analysis.audio_analyzer import AudioAnalyzer
 from app.infrastructure.analysis.facial_analyzer import FacialAnalyzer
@@ -52,6 +55,7 @@ class InterviewOrchestrator:
     ) -> None:
         self._gemini = gemini or GeminiInterviewAnalyzer()
         self._interviewer = interviewer or get_ai_interviewer_engine()
+        self._reports = get_interview_report_service()
         self._audio = audio or AudioAnalyzer()
         self._facial = facial or FacialAnalyzer()
         self._scoring = scoring or ScoringEngine()
@@ -118,7 +122,8 @@ class InterviewOrchestrator:
         if emit:
             await emit("ai_thinking", {"session_id": session_id, "thinking": True})
 
-        turn = self._interviewer.build_opening_turn(
+        turn = await asyncio.to_thread(
+            self._interviewer.build_opening_turn,
             job_context=session.get("job_context", ""),
             required_skills=session.get("required_skills", []),
         )
@@ -178,7 +183,8 @@ class InterviewOrchestrator:
             for m in session["messages"]
         ]
 
-        content = self._gemini.analyze_answer(
+        content = await asyncio.to_thread(
+            self._gemini.analyze_answer,
             candidate_answer=transcript,
             history=history,
             job_context=session["job_context"],
@@ -216,6 +222,17 @@ class InterviewOrchestrator:
 
         if emit:
             await emit("analysis.content", payload)
+            feedback = build_live_feedback(content, scores=partial)
+            session["last_live_feedback"] = feedback.model_dump()
+            await emit(
+                "live_feedback",
+                {
+                    "session_id": session_id,
+                    "feedback": feedback.model_dump(),
+                    "scores": partial,
+                },
+            )
+            await emit("scores_update", {"session_id": session_id, "scores": partial})
 
         interviewer_payload = await self._generate_interviewer_follow_up(
             session_id,
@@ -239,7 +256,8 @@ class InterviewOrchestrator:
         if emit:
             await emit("ai_thinking", {"session_id": session_id, "thinking": True})
 
-        turn = self._interviewer.build_next_turn(
+        turn = await asyncio.to_thread(
+            self._interviewer.build_next_turn,
             session=session,
             candidate_answer=transcript,
             content_analysis=content,
@@ -278,7 +296,8 @@ class InterviewOrchestrator:
         if emit:
             await emit("ai_thinking", {"session_id": session_id, "thinking": True})
 
-        turn = self._interviewer.build_next_turn(
+        turn = await asyncio.to_thread(
+            self._interviewer.build_next_turn,
             session=session,
             candidate_answer=last_candidate or "El candidato pidió la siguiente pregunta.",
             content_analysis=content,
@@ -406,7 +425,10 @@ class InterviewOrchestrator:
         session = self._require_session(session_id)
         session["status"] = InterviewStatus.PROCESSING.value
         try:
-            closing = self._interviewer.build_closing_turn(session=session)
+            closing = await asyncio.to_thread(
+                self._interviewer.build_closing_turn,
+                session=session,
+            )
             self._interviewer.apply_turn_to_session(session, closing, advance_phase_counter=False)
         except Exception as exc:
             logger.warning("Closing turn generation failed: %s", exc)
@@ -434,6 +456,16 @@ class InterviewOrchestrator:
         session["status"] = InterviewStatus.COMPLETED.value
         session["ended_at"] = datetime.now(timezone.utc).isoformat()
         session["final_score"] = final.model_dump()
+
+        if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": True})
+
+        report = await asyncio.to_thread(
+            self._reports.generate,
+            session=session,
+            final_score=final,
+        )
+        session["final_report"] = report.model_dump()
         self._persist_session(session_id, session)
 
         try:
@@ -461,9 +493,11 @@ class InterviewOrchestrator:
             "type": "interview_complete",
             "session_id": session_id,
             "final_score": final.model_dump(),
+            "final_report": session.get("final_report"),
             "message_count": len(session["messages"]),
         }
         if emit:
+            await emit("ai_thinking", {"session_id": session_id, "thinking": False})
             await emit("interview.complete", summary)
         return summary
 

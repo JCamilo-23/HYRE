@@ -12,6 +12,8 @@ import { ScoreCards } from "./ScoreCards"
 import { RecruiterInsights } from "./RecruiterInsights"
 import { LiveTranscript } from "./LiveTranscript"
 import { AIInterviewerPanel } from "./AIInterviewerPanel"
+import { LiveFeedbackPanel } from "./LiveFeedbackPanel"
+import { InterviewReportPanel } from "./InterviewReportPanel"
 
 interface InterviewRoomProps {
   sessionId: string
@@ -32,6 +34,10 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     scores,
     lastHint,
     lastQuestion,
+    liveFeedback,
+    finalReport,
+    reportLoading,
+    interviewEnded,
     aiThinking,
     phaseLabel,
     progressPct,
@@ -157,6 +163,10 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     stream?.getTracks().forEach((t) => t.stop())
   }, [endInterview, stream])
 
+  useEffect(() => {
+    if (interviewEnded) setStatus("ended")
+  }, [interviewEnded])
+
   const displayQuestion =
     lastQuestion ||
     (typeof window !== "undefined"
@@ -193,6 +203,8 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
               </div>
             )}
           </div>
+
+          <LiveFeedbackPanel feedback={liveFeedback} />
 
           <AIInterviewerPanel
             question={displayQuestion}
@@ -337,6 +349,14 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
           )}
         </aside>
       </main>
+      {(status === "ended" || interviewEnded) && (
+        <InterviewReportPanel
+          sessionId={sessionId}
+          scores={scores}
+          report={finalReport}
+          loading={reportLoading || (interviewEnded && !finalReport)}
+        />
+      )}
     </div>
   )
 }

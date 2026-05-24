@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -15,6 +16,7 @@ from app.api.v1.schemas.interview_engine import (
     CreateInterviewRequest,
     CreateInterviewResponse,
     InterviewScoreResponse,
+    InterviewReportResponse,
 )
 from app.core.config import settings
 from app.core.exceptions import RateLimitExceeded
@@ -110,6 +112,29 @@ async def get_session_scores(session_id: str) -> InterviewScoreResponse:
         recommendation=final["recommendation"],
         dimensions=final.get("dimensions", {}),
         red_flags=final.get("red_flags", []),
+    )
+
+
+
+@router.get("/sessions/{session_id}/report", response_model=InterviewReportResponse)
+async def get_session_report(session_id: str) -> InterviewReportResponse:
+    from datetime import datetime, timezone
+
+    orchestrator = get_interview_orchestrator()
+    session = orchestrator.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    report = session.get("final_report")
+    if not report:
+        raise HTTPException(
+            status_code=404,
+            detail="Report not ready. Finalize the interview first.",
+        )
+    return InterviewReportResponse(
+        session_id=session_id,
+        report=report,
+        final_score=session.get("final_score"),
+        generated_at=session.get("ended_at") or datetime.now(timezone.utc).isoformat(),
     )
 
 
@@ -226,7 +251,8 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                     )
                     continue
                 try:
-                    hint = gemini.stream_coaching_hint(
+                    hint = await asyncio.to_thread(
+                        gemini.stream_coaching_hint,
                         candidate_answer=text,
                         stress_level=float(result.get("scores", {}).get("confidence_score", 50)),
                     )

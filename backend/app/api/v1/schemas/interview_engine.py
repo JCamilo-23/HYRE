@@ -38,3 +38,11 @@ class InterviewScoreResponse(BaseModel):
     recommendation: str
     dimensions: dict[str, float]
     red_flags: list[str]
+
+
+
+class InterviewReportResponse(BaseModel):
+    session_id: str
+    report: dict[str, Any]
+    final_score: dict[str, Any] | None = None
+    generated_at: str | None = None
