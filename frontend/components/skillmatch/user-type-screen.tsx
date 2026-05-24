@@ -141,10 +141,10 @@ export function UserTypeScreen({ onSelect }: UserTypeScreenProps) {
               <h3 className={`text-lg font-medium mb-1 ${
                 selected === "company" ? "text-[#F1F5F9]" : "text-[#F1F5F9]"
               }`}>
-                Busco talento
+                Necesitamos talentos
               </h3>
               <p className="text-[#94A3B8] text-sm leading-relaxed">
-                Encuentra candidatos evaluados por IA sin perder tiempo en procesos largos
+                Publica tu proyecto y conecta con candidatos evaluados por IA que encajan con tu cultura
               </p>
             </div>
           </div>
