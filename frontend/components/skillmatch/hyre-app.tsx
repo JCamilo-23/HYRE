@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { UserTypeScreen } from "@/components/skillmatch/user-type-screen"
 import { RegisterScreen } from "@/components/skillmatch/register-screen"
@@ -15,8 +16,13 @@ import { BottomNav } from "@/components/skillmatch/bottom-nav"
 import { NovaAppSync } from "@/components/nova/nova-root"
 
 import type { Screen, UserData } from "@/lib/hyre-types"
+import {
+  readExternalAuthPending,
+  readHyreUserSession,
+} from "@/modules/auth/external-social"
 
 export function HyreApp() {
+  const router = useRouter()
   const [currentScreen, setCurrentScreen] = useState<Screen>("userType")
   const [userType, setUserType] = useState<"candidate" | "company" | null>(null)
   const [isOnboarded, setIsOnboarded] = useState(false)
@@ -25,6 +31,61 @@ export function HyreApp() {
     email: "",
     userType: null,
   })
+  const [authToast, setAuthToast] = useState<string | null>(null)
+
+  const hydrateFromStoredSession = useCallback(() => {
+    const session = readHyreUserSession()
+    if (!session) return false
+
+    setUserType(session.userType)
+    setUserData({
+      name: session.name,
+      email: session.email,
+      userType: session.userType,
+    })
+    setIsOnboarded(true)
+    setCurrentScreen("home")
+    return true
+  }, [])
+
+  useEffect(() => {
+    hydrateFromStoredSession()
+  }, [hydrateFromStoredSession])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("auth") !== "success") return
+
+    setAuthToast("Sesion iniciada correctamente")
+    hydrateFromStoredSession()
+
+    const url = new URL(window.location.href)
+    url.searchParams.delete("auth")
+    window.history.replaceState({}, "", url.pathname + url.search)
+  }, [hydrateFromStoredSession])
+
+  useEffect(() => {
+    const tryCompletePendingReturn = () => {
+      if (!readExternalAuthPending()) return
+      router.push("/auth/return")
+    }
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) tryCompletePendingReturn()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") tryCompletePendingReturn()
+    }
+
+    window.addEventListener("pageshow", onPageShow)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [router])
 
   const handleUserTypeSelect = (type: "candidate" | "company") => {
     setUserType(type)
@@ -83,6 +144,11 @@ export function HyreApp() {
       </div>
 
       <main className="relative z-10 max-w-md mx-auto min-h-screen">
+        {authToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg glass text-[#F1F5F9] text-sm">
+            {authToast}
+          </div>
+        )}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentScreen}
