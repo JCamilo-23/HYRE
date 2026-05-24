@@ -1,43 +1,53 @@
-import { sendCopilotMessage } from "@/modules/copilot"
-import { NOVA_SUGGESTIONS } from "./constants"
+import type { NovaMessage } from "./types"
+import { getNovaFallbackReply } from "./fallback-replies"
 
-const MOCK_RESPONSES: Record<string, string> = {
-  "¿Cómo puedo mejorar mi score?":
-    "Basado en tu último reporte, te recomiendo: 1) Respuestas más estructuradas con método STAR. 2) Mantener contacto visual en cámara. 3) Incluir ejemplos concretos. Mejorar comunicación un 10% puede abrirte más oportunidades.",
-  "Prepárame para mi próxima entrevista":
-    "Para tu próxima entrevista: 1) Prepara 3 historias de éxito. 2) Investiga la cultura de la empresa. 3) Ten preguntas listas sobre el equipo. ¿Practicamos preguntas comunes?",
-  "¿Qué habilidades debo desarrollar?":
-    "Según tu perfil y vacantes similares: React avanzado, testing con Jest y soft skills de liderazgo. Enfócate en una por semana para progreso medible.",
-  "Analiza mi perfil":
-    "Fortalezas: comunicación y trabajo en equipo. Áreas de mejora: liderazgo y profundidad técnica. Completa tu video de presentación para aumentar matches.",
-}
+async function callNovaApi(
+  message: string,
+  options: {
+    sessionId?: string | null
+    firstName: string
+    history: NovaMessage[]
+  },
+): Promise<{ reply: string; sessionId: string }> {
+  const res = await fetch("/api/nova/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      history: options.history.map(({ role, content }) => ({ role, content })),
+      firstName: options.firstName,
+      sessionId: options.sessionId,
+    }),
+  })
 
-function getMockReply(message: string, firstName: string): string {
-  const normalized = NOVA_SUGGESTIONS.find(
-    (s) => s.toLowerCase() === message.toLowerCase(),
-  )
-  if (normalized && MOCK_RESPONSES[normalized]) {
-    return MOCK_RESPONSES[normalized].replace(/\{name\}/g, firstName)
+  const data = (await res.json()) as { reply?: string; session_id?: string; detail?: string }
+
+  if (!res.ok || !data.reply) {
+    throw new Error(data.detail ?? "Nova API error")
   }
-  return `Entiendo tu pregunta, ${firstName}. Déjame analizar tu perfil y resultados recientes. ¿Qué aspecto te gustaría profundizar?`
+
+  return { reply: data.reply, sessionId: data.session_id ?? crypto.randomUUID() }
 }
 
 export async function sendNovaMessage(
   message: string,
-  options: { sessionId?: string | null; firstName: string },
+  options: {
+    sessionId?: string | null
+    firstName: string
+    history: NovaMessage[]
+  },
 ): Promise<{ reply: string; sessionId: string }> {
   try {
-    const res = await sendCopilotMessage(message, options.sessionId ?? undefined)
-    return { reply: res.reply, sessionId: res.session_id }
+    return await callNovaApi(message, options)
   } catch {
     return {
-      reply: getMockReply(message, options.firstName),
+      reply: getNovaFallbackReply(message, options.firstName),
       sessionId: options.sessionId ?? crypto.randomUUID(),
     }
   }
 }
 
 export function buildGreeting(firstName: string): string {
-  const name = firstName || "amigo"
+  const name = firstName && firstName !== "Usuario" ? firstName : "amigo"
   return `Hola ${name}! Soy Nova, tu mentor de carrera IA. Estoy aquí para ayudarte a mejorar tus habilidades y prepararte para el éxito. ¿Qué te gustaría saber hoy?`
 }

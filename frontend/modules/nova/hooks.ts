@@ -16,6 +16,7 @@ export function useNovaChat() {
   } = useNovaStore()
 
   const firstName = userName.split(" ")[0] || "amigo"
+  const displayName = firstName !== "Usuario" ? firstName : "amigo"
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -26,9 +27,11 @@ export function useNovaChat() {
       setIsTyping(true)
 
       try {
+        const history = useNovaStore.getState().messages
         const { reply, sessionId: nextSessionId } = await sendNovaMessage(trimmed, {
           sessionId,
-          firstName,
+          firstName: displayName,
+          history,
         })
         setSessionId(nextSessionId)
         appendMessage({ role: "assistant", content: reply })
@@ -36,8 +39,8 @@ export function useNovaChat() {
         setIsTyping(false)
       }
     },
-    [appendMessage, firstName, isTyping, sessionId, setIsTyping, setSessionId],
+    [appendMessage, displayName, isTyping, sessionId, setIsTyping, setSessionId],
   )
 
-  return { messages, isTyping, sendMessage, firstName }
+  return { messages, isTyping, sendMessage, firstName: displayName }
 }
