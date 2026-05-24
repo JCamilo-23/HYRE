@@ -1,14 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@/lib/supabase/middleware";
+import { isSupabaseConfigured } from "@/lib/supabase/config-status";
 
-const PUBLIC_ROUTES = ["/", "/empezar", "/app", "/login", "/register", "/pricing"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/empezar",
+  "/app",
+  "/login",
+  "/register",
+  "/pricing",
+  "/auth/callback",
+];
 
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Allow local landing preview without Supabase credentials
-  if (!supabaseUrl || !supabaseAnonKey) {
+  // Allow local preview without real Supabase credentials (missing or placeholder)
+  if (!supabaseUrl || !supabaseAnonKey || !isSupabaseConfigured()) {
     return NextResponse.next();
   }
 
