@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api.v1.routes import (
+    interview_engine,
     jobs,
     simulations,
     copilot,
@@ -26,6 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(
+    interview_engine.router,
+    prefix="/api/v1/interviews",
+    tags=["interview-engine"],
+)
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["jobs"])
 app.include_router(simulations.router, prefix="/api/v1/simulations", tags=["simulations"])
 app.include_router(copilot.router, prefix="/api/v1/copilot", tags=["copilot"])
@@ -37,6 +43,17 @@ app.include_router(
     prefix="/api/v1/work-simulator",
     tags=["work-simulator"],
 )
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "HYRE API",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+        "interview_engine": "/api/v1/interviews/health",
+    }
 
 
 @app.get("/health")

@@ -1,0 +1,141 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { InterviewScores, InterviewWsEvent } from "./types"
+import { getInterviewWsUrl } from "./api"
+
+export function useInterviewWebSocket(sessionId: string | null) {
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectAttempt = useRef(0)
+  const [connected, setConnected] = useState(false)
+  const [scores, setScores] = useState<InterviewScores | null>(null)
+  const [lastHint, setLastHint] = useState<string | null>(null)
+  const [lastQuestion, setLastQuestion] = useState<string | null>(null)
+  const [transcriptLines, setTranscriptLines] = useState<string[]>([])
+  const [contentSummary, setContentSummary] = useState<string | null>(null)
+  const [events, setEvents] = useState<InterviewWsEvent[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const connect = useCallback(() => {
+    if (!sessionId) return
+    if (wsRef.current?.readyState === WebSocket.OPEN) return
+
+    const ws = new WebSocket(getInterviewWsUrl(sessionId))
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      setConnected(true)
+      setError(null)
+      reconnectAttempt.current = 0
+    }
+
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as InterviewWsEvent & {
+          content?: { summary?: string }
+        }
+        setEvents((prev) => [...prev.slice(-50), data])
+
+        if ("scores" in data && data.scores) {
+          setScores(data.scores as InterviewScores)
+        }
+        if (data.type === "coaching_hint" && "hint" in data) {
+          setLastHint(data.hint)
+        }
+        if (data.type === "interviewer_question" && "question" in data) {
+          setLastQuestion(data.question)
+        }
+        if (data.type === "interview_complete" && "final_score" in data) {
+          setScores(data.final_score as InterviewScores)
+        }
+        if (data.type === "content_analysis" && data.content?.summary) {
+          setContentSummary(data.content.summary)
+        }
+        if (data.type === "error" && "message" in data) {
+          setError(data.message)
+        }
+      } catch {
+        setError("Invalid server message")
+      }
+    }
+
+    ws.onerror = () => setError("WebSocket connection error")
+    ws.onclose = () => {
+      setConnected(false)
+      const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 15000)
+      reconnectAttempt.current += 1
+      setTimeout(() => connect(), delay)
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    connect()
+    const ping = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping" }))
+      }
+    }, 25000)
+    return () => {
+      clearInterval(ping)
+      wsRef.current?.close()
+    }
+  }, [connect])
+
+  const send = useCallback((payload: Record<string, unknown>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(payload))
+    } else {
+      setError("Sin conexión WebSocket. ¿Está el backend en el puerto 8000?")
+    }
+  }, [])
+
+  const sendTranscript = useCallback(
+    (text: string, confidence = 1) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      setTranscriptLines((prev) => [...prev, trimmed])
+      send({ type: "transcript", text: trimmed, confidence })
+    },
+    [send],
+  )
+
+  const sendVideoFrame = useCallback(
+    (dataUrl: string) => {
+      const b64 = dataUrl.split(",")[1]
+      if (b64) send({ type: "video_frame", data: b64 })
+    },
+    [send],
+  )
+
+  const sendAudioChunk = useCallback(
+    (base64: string) => {
+      if (base64) send({ type: "audio_chunk", data: base64 })
+    },
+    [send],
+  )
+
+  const requestQuestion = useCallback(() => {
+    send({ type: "request_question", difficulty: "medium" })
+  }, [send])
+
+  const endInterview = useCallback(() => {
+    send({ type: "end_interview" })
+  }, [send])
+
+  return {
+    connected,
+    scores,
+    lastHint,
+    lastQuestion,
+    transcriptLines,
+    contentSummary,
+    events,
+    error,
+    sendTranscript,
+    sendVideoFrame,
+    sendAudioChunk,
+    requestQuestion,
+    endInterview,
+    reconnect: connect,
+  }
+}

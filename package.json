@@ -1,11 +1,11 @@
 {
-  "name": "barranqui-ia-2026",
+  "name": "hyre",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "frontend": "cd frontend && npm run dev",
-    "backend": "cd backend && python -m uvicorn app.main:app --reload"
+    "dev": "concurrently -n frontend,backend -c cyan,magenta \"npm run frontend\" \"npm run backend\"",
+    "frontend": "cd frontend && npm run dev -- -p 3000",
+    "backend": "cd backend && PYTHONPATH=. python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
