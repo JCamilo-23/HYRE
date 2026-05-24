@@ -23,6 +23,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [micOn, setMicOn] = useState(true)
+  const [mediaError, setMediaError] = useState<string | null>(null)
   const [answer, setAnswer] = useState("")
   const [status, setStatus] = useState<"live" | "ended">("live")
 
@@ -70,9 +71,13 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     onInterimTranscript: (text) => setAnswer(text),
   })
 
-  useAudioCapture({
-    stream: micOn ? stream : null,
-    enabled: role === "candidate" && status === "live",
+  const {
+    error: audioCaptureError,
+    isRecording: audioRecording,
+    retry: retryAudioCapture,
+  } = useAudioCapture({
+    stream: micOn && stream ? stream : null,
+    enabled: role === "candidate" && status === "live" && Boolean(stream),
     onChunk: sendAudioChunk,
   })
 
@@ -95,6 +100,18 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
       .catch((err) => {
         console.error("getUserMedia failed:", err)
         setStream(null)
+        const name = err instanceof DOMException ? err.name : ""
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+          setMediaError(
+            "Permiso de cámara o micrófono denegado. Permítelo en el navegador y recarga la página.",
+          )
+        } else if (name === "NotFoundError") {
+          setMediaError("No se encontró cámara o micrófono en este dispositivo.")
+        } else {
+          setMediaError(
+            "No se pudo activar cámara/micrófono. Comprueba permisos y que ninguna otra app los use.",
+          )
+        }
       })
     return () => {
       active = false
@@ -245,8 +262,13 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
               size="icon"
               className="rounded-full border-white/15"
               onClick={() => {
-                setMicOn((v) => !v)
-                stream?.getAudioTracks().forEach((t) => (t.enabled = !micOn))
+                setMicOn((prev) => {
+                  const next = !prev
+                  stream?.getAudioTracks().forEach((track) => {
+                    track.enabled = next
+                  })
+                  return next
+                })
               }}
             >
               {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
@@ -265,8 +287,28 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
             </Button>
           </div>
 
+          {(mediaError || audioCaptureError) && (
+            <div className="rounded-xl border border-[#F87171]/30 bg-[#F87171]/10 p-3 text-sm text-[#FCA5A5]">
+              <p>{mediaError ?? audioCaptureError}</p>
+              {audioCaptureError && !mediaError && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 rounded-full border-white/15"
+                  onClick={retryAudioCapture}
+                >
+                  Reintentar captura de audio
+                </Button>
+              )}
+            </div>
+          )}
+
           {(error || sttError) && (
             <p className="text-sm text-[#F87171]">{error ?? sttError}</p>
+          )}
+
+          {audioRecording && micOn && !audioCaptureError && (
+            <p className="text-xs text-[#64748B]">Micrófono activo · enviando audio al análisis</p>
           )}
         </div>
 
