@@ -51,14 +51,26 @@ if (key.includes("PASTE") || key.includes("placeholder") || key.includes("your-a
 }
 
 try {
-  const health = await fetch(`${url}/auth/v1/health`)
-  if (health.ok) {
-    console.log("✅ Supabase responde correctamente")
-    console.log("\n   Siguiente: habilita Google/Apple/LinkedIn en Authentication → Providers\n")
-  } else {
-    console.error(`❌ Supabase respondió HTTP ${health.status}`)
+  const res = await fetch(`${url}/auth/v1/settings`, {
+    headers: { apikey: key },
+  })
+  if (!res.ok) {
+    console.error(`❌ Supabase respondió HTTP ${res.status} — revisa la API key`)
     process.exit(1)
   }
+
+  const settings = await res.json()
+  const external = settings.external ?? {}
+  const oauth = ["google", "apple", "linkedin_oidc"].filter((p) => external[p])
+  const email = external.email === true
+
+  console.log("✅ Supabase responde correctamente")
+  console.log(`   Email auth: ${email ? "habilitado" : "deshabilitado"}`)
+  console.log(`   OAuth: ${oauth.length ? oauth.join(", ") : "ninguno (habilita en Dashboard → Authentication → Providers)"}`)
+  if (settings.mailer_autoconfirm === false) {
+    console.log("   ⚠ Confirmación de email activa — desactívala en Providers → Email para pruebas rápidas")
+  }
+  console.log("")
 } catch (e) {
   console.error(`❌ No se pudo conectar: ${e.message}`)
   process.exit(1)

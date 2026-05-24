@@ -89,8 +89,8 @@ export function getSupabaseConfigStatus(): SupabaseConfigStatus {
       projectRef,
       reason: "placeholder_key",
       message: projectRef
-        ? `URL del proyecto OK (${projectRef}). Falta la anon key: Supabase Dashboard → Settings → API → anon public.`
-        : "Falta la anon public key en NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+        ? `URL del proyecto OK (${projectRef}). Falta la API key: Supabase Dashboard → Settings → API (anon public o publishable).`
+        : "Falta la API key en NEXT_PUBLIC_SUPABASE_ANON_KEY.",
       dashboardApiUrl,
     }
   }

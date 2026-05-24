@@ -7,9 +7,11 @@ export async function GET() {
   let reachable = false
   let authHealth: string | null = null
 
-  if (status.configured && status.url) {
+  if (status.configured && status.url && status.keyValid) {
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
     try {
-      const res = await fetch(`${status.url}/auth/v1/health`, {
+      const res = await fetch(`${status.url}/auth/v1/settings`, {
+        headers: anonKey ? { apikey: anonKey } : undefined,
         next: { revalidate: 0 },
       })
       reachable = res.ok
