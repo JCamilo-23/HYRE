@@ -10,6 +10,8 @@ import { useSpeechRecognition } from "../use-speech-recognition"
 import { useAudioCapture } from "../use-audio-capture"
 import { ScoreCards } from "./ScoreCards"
 import { RecruiterInsights } from "./RecruiterInsights"
+import { LiveTranscript } from "./LiveTranscript"
+import { AIInterviewerPanel } from "./AIInterviewerPanel"
 
 interface InterviewRoomProps {
   sessionId: string
@@ -29,6 +31,8 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     scores,
     lastHint,
     lastQuestion,
+    transcriptLines,
+    contentSummary,
     events,
     error,
     sendTranscript,
@@ -37,6 +41,14 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     requestQuestion,
     endInterview,
   } = useInterviewWebSocket(sessionId)
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(`hyre_opening_${sessionId}`)
+    if (stored && !lastQuestion) {
+      // Opening question also arrives via WebSocket; sessionStorage is fallback
+      sessionStorage.removeItem(`hyre_opening_${sessionId}`)
+    }
+  }, [sessionId, lastQuestion])
 
   const handleFinalTranscript = useCallback(
     (text: string, confidence: number) => {
@@ -108,6 +120,12 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     stream?.getTracks().forEach((t) => t.stop())
   }, [endInterview, stream])
 
+  const displayQuestion =
+    lastQuestion ||
+    (typeof window !== "undefined"
+      ? sessionStorage.getItem(`hyre_opening_${sessionId}`)
+      : null)
+
   return (
     <div className="min-h-screen bg-[#0a0614] text-white">
       <div className="pointer-events-none fixed inset-0">
@@ -139,16 +157,20 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
             )}
           </div>
 
-          {lastQuestion && (
+          <AIInterviewerPanel question={displayQuestion} connected={connected} />
+
+          {contentSummary && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-[#7C3AED]/30 bg-[#7C3AED]/10 p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-[#CBD5E1]"
             >
-              <p className="text-xs text-[#C4B5FD]">Pregunta del entrevistador IA</p>
-              <p className="mt-1 text-white">{lastQuestion}</p>
+              <span className="text-xs text-[#7C3AED]">Análisis Gemini · </span>
+              {contentSummary}
             </motion.div>
           )}
+
+          <LiveTranscript lines={transcriptLines} interim={sttListening ? sttInterim : undefined} />
 
           {role === "candidate" && status === "live" && (
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -159,13 +181,10 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
                   placeholder={
                     sttSupported
                       ? "Habla o escribe tu respuesta…"
-                      : "Escribe tu respuesta (STT no disponible en este navegador)"
+                      : "Escribe tu respuesta (activa micrófono para STT)"
                   }
                   className="min-h-[80px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none"
                 />
-                {sttInterim && (
-                  <p className="text-xs text-[#64748B]">Escuchando: {sttInterim}</p>
-                )}
               </div>
               <div className="flex flex-col gap-2">
                 {sttSupported && (
@@ -181,6 +200,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
                 <Button
                   className="rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF]"
                   onClick={handleSubmitAnswer}
+                  disabled={!connected}
                 >
                   Enviar respuesta
                 </Button>
@@ -188,6 +208,7 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
                   variant="outline"
                   className="rounded-full border-white/15"
                   onClick={requestQuestion}
+                  disabled={!connected}
                 >
                   Siguiente pregunta
                 </Button>

@@ -76,3 +76,25 @@ Apply `migrations/001_ai_interview_engine.sql` in Supabase.
 - Browser Web Speech API (`useSpeechRecognition`) streams final transcripts over WebSocket
 - `MediaRecorder` sends audio chunks every 5s for librosa analysis
 - Video frames sampled every 3s (JPEG 320×180) for MediaPipe facial analysis
+
+
+## Local development (fix "Failed to fetch")
+
+1. **Backend** (terminal 1):
+   ```bash
+   cd backend
+   cp .env.example .env
+   # Set GEMINI_API_KEY=... from https://aistudio.google.com/apikey
+   pip install fastapi uvicorn pydantic-settings python-multipart google-generativeai Pillow numpy scipy librosa opencv-python-headless stripe resend supabase
+   PYTHONPATH=. uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+2. **Frontend** (terminal 2):
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+3. REST calls use the **Next.js proxy** (`/api/interviews/*`) → no CORS issues.
+4. WebSocket connects directly to `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`).
+5. Open http://localhost:3000/interview — lobby checks `/api/interviews/health` before starting.

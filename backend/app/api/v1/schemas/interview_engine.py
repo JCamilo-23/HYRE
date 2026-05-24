@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID
-
 from pydantic import BaseModel, Field
 
 
 class CreateInterviewRequest(BaseModel):
-    candidate_id: UUID
-    recruiter_id: UUID | None = None
-    job_id: UUID | None = None
+    candidate_id: str
+    recruiter_id: str | None = None
+    job_id: str | None = None
     job_context: str = ""
     required_skills: list[str] = Field(default_factory=list)
     mode: str = "live"
@@ -21,6 +19,8 @@ class CreateInterviewResponse(BaseModel):
     session_id: str
     ws_url: str
     status: str
+    opening_question: str | None = None
+    gemini_ready: bool = True
 
 
 class TranscriptEvent(BaseModel):

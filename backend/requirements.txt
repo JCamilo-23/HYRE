@@ -16,4 +16,4 @@ celery==5.4.0
 redis==5.2.0
 grpcio==1.68.0
 grpcio-tools==1.68.0
-protobuf==5.28.3
+protobuf>=4.25.0,<6

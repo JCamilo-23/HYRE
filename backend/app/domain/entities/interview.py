@@ -94,11 +94,11 @@ class FacialAnalysisResult(BaseModel):
 
 
 class ScoringWeights(BaseModel):
-    content: float = 0.40
-    audio: float = 0.20
+    content: float = 0.50
+    audio: float = 0.25
     facial: float = 0.15
-    authenticity: float = 0.15
-    skill_match: float = 0.10
+    authenticity: float = 0.10
+    skill_match: float = 0.0
 
 
 class FinalInterviewScore(BaseModel):

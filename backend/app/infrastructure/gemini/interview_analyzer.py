@@ -65,6 +65,9 @@ class GeminiInterviewAnalyzer:
         job_context: str = "",
         required_skills: Sequence[str] | None = None,
     ) -> ContentAnalysisResult:
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not configured")
+
         start = time.perf_counter()
         history_text = "\n".join(
             f"{m.get('role', 'user')}: {m.get('content', '')[:500]}"
@@ -90,6 +93,8 @@ class GeminiInterviewAnalyzer:
             return result
         except Exception as exc:
             logger.exception("Gemini interview analysis failed: %s", exc)
+            if settings.REQUIRE_GEMINI:
+                raise RuntimeError(f"Gemini analysis failed: {exc}") from exc
             return self._heuristic_fallback(candidate_answer)
 
     def stream_coaching_hint(

@@ -11,6 +11,8 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [scores, setScores] = useState<InterviewScores | null>(null)
   const [lastHint, setLastHint] = useState<string | null>(null)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
+  const [transcriptLines, setTranscriptLines] = useState<string[]>([])
+  const [contentSummary, setContentSummary] = useState<string | null>(null)
   const [events, setEvents] = useState<InterviewWsEvent[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -29,7 +31,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
 
     ws.onmessage = (ev) => {
       try {
-        const data = JSON.parse(ev.data) as InterviewWsEvent
+        const data = JSON.parse(ev.data) as InterviewWsEvent & {
+          content?: { summary?: string }
+        }
         setEvents((prev) => [...prev.slice(-50), data])
 
         if ("scores" in data && data.scores) {
@@ -43,6 +47,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
         }
         if (data.type === "interview_complete" && "final_score" in data) {
           setScores(data.final_score as InterviewScores)
+        }
+        if (data.type === "content_analysis" && data.content?.summary) {
+          setContentSummary(data.content.summary)
         }
         if (data.type === "error" && "message" in data) {
           setError(data.message)
@@ -77,12 +84,17 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const send = useCallback((payload: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(payload))
+    } else {
+      setError("Sin conexión WebSocket. ¿Está el backend en el puerto 8000?")
     }
   }, [])
 
   const sendTranscript = useCallback(
     (text: string, confidence = 1) => {
-      send({ type: "transcript", text, confidence })
+      const trimmed = text.trim()
+      if (!trimmed) return
+      setTranscriptLines((prev) => [...prev, trimmed])
+      send({ type: "transcript", text: trimmed, confidence })
     },
     [send],
   )
@@ -115,6 +127,8 @@ export function useInterviewWebSocket(sessionId: string | null) {
     scores,
     lastHint,
     lastQuestion,
+    transcriptLines,
+    contentSummary,
     events,
     error,
     sendTranscript,

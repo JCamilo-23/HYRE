@@ -27,4 +27,6 @@ export interface CreateSessionResponse {
   session_id: string
   ws_url: string
   status: string
+  opening_question?: string | null
+  gemini_ready?: boolean
 }

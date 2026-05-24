@@ -39,21 +39,54 @@ def _check_rate_limit(session_id: str) -> None:
         raise RateLimitExceeded()
 
 
+
+@router.get("/health")
+async def interview_engine_health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "gemini_configured": bool(settings.GEMINI_API_KEY),
+        "gemini_model": settings.GEMINI_PRO_MODEL,
+        "require_gemini": settings.REQUIRE_GEMINI,
+    }
+
+
 @router.post("/sessions", response_model=CreateInterviewResponse)
 async def create_interview_session(body: CreateInterviewRequest) -> CreateInterviewResponse:
+    if settings.REQUIRE_GEMINI and not settings.GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="GEMINI_API_KEY no configurada en el backend. Añádela en backend/.env",
+        )
+
     orchestrator = get_interview_orchestrator()
     session_id = orchestrator.create_session(
-        candidate_id=str(body.candidate_id),
-        job_id=str(body.job_id) if body.job_id else None,
-        recruiter_id=str(body.recruiter_id) if body.recruiter_id else None,
+        candidate_id=body.candidate_id,
+        job_id=body.job_id,
+        recruiter_id=body.recruiter_id,
         job_context=body.job_context,
         required_skills=body.required_skills,
     )
     ws_path = f"/api/v1/interviews/ws/{session_id}"
+
+    opening_question: str | None = None
+    gemini_ready = bool(settings.GEMINI_API_KEY)
+    if gemini_ready:
+        session = orchestrator.get_session(session_id) or {}
+        gemini = GeminiInterviewAnalyzer()
+        opening_question = gemini.generate_next_question(
+            history=[],
+            job_context=body.job_context or session.get("job_context", ""),
+            difficulty="medium",
+        )
+        session["opening_question"] = opening_question
+        orchestrator._persist_session(session_id, session)  # noqa: SLF001
+
     return CreateInterviewResponse(
         session_id=session_id,
         ws_url=ws_path,
         status="live",
+        opening_question=opening_question,
+        gemini_ready=gemini_ready,
     )
 
 
@@ -105,6 +138,24 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
     gemini = GeminiInterviewAnalyzer()
     conn_id = await ws_manager.connect(websocket, session_id, role="candidate")
 
+    session = orchestrator.get_session(session_id) or {}
+    if session.get("opening_question"):
+        await ws_manager.send_json(
+            websocket,
+            {
+                "type": "interviewer_question",
+                "question": session["opening_question"],
+            },
+        )
+    elif settings.GEMINI_API_KEY:
+        gemini_boot = GeminiInterviewAnalyzer()
+        q = gemini_boot.generate_next_question(
+            history=[],
+            job_context=session.get("job_context", ""),
+            difficulty="medium",
+        )
+        await ws_manager.send_json(websocket, {"type": "interviewer_question", "question": q})
+
     async def emit(event: str, payload: dict[str, Any]) -> None:
         await ws_manager.broadcast(session_id, {"type": event, **payload}, exclude=conn_id)
 
@@ -135,12 +186,19 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                 text = msg.get("text", "").strip()
                 if not text:
                     continue
-                result = await orchestrator.process_transcript(
-                    session_id,
-                    transcript=text,
-                    confidence=float(msg.get("confidence", 1.0)),
-                    emit=emit,
-                )
+                try:
+                    result = await orchestrator.process_transcript(
+                        session_id,
+                        transcript=text,
+                        confidence=float(msg.get("confidence", 1.0)),
+                        emit=emit,
+                    )
+                except (RuntimeError, ValueError) as exc:
+                    await ws_manager.send_json(
+                        websocket,
+                        {"type": "error", "message": str(exc)},
+                    )
+                    continue
                 hint = gemini.stream_coaching_hint(
                     candidate_answer=text,
                     stress_level=float(result.get("scores", {}).get("confidence_score", 50)),

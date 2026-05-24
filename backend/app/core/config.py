@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # Interview engine tuning
     INTERVIEW_TARGET_LATENCY_MS: int = 500
     FACIAL_FRAME_STRIDE: int = 3
+    REQUIRE_GEMINI: bool = True
 
 
 settings = Settings()
