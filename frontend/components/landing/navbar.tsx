@@ -74,7 +74,7 @@ export function Navbar() {
               <a href="#producto">Ver producto</a>
             </Button>
             <Button
-              className="relative overflow-hidden rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF] px-6 font-semibold shadow-[0_0_32px_rgba(124,58,237,0.5)] transition hover:shadow-[0_0_48px_rgba(124,58,237,0.65)] hover:brightness-110"
+              className="relative overflow-hidden rounded-full border border-[#9F67FF]/40 bg-gradient-to-r from-[#7C3AED] to-[#9F67FF] px-7 font-semibold text-white shadow-[0_0_40px_rgba(124,58,237,0.55)] ring-2 ring-[#7C3AED]/30 transition hover:shadow-[0_0_56px_rgba(124,58,237,0.7)] hover:brightness-110"
               asChild
             >
               <Link href="/login">Iniciar Sesión</Link>

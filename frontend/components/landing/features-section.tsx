@@ -26,9 +26,9 @@ export function FeaturesSection() {
                   whileHover={{ y: -8 }}
                   transition={{ type: "spring", stiffness: 320, damping: 22 }}
                   className={cn(
-                    "group relative h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl",
-                    "transition-colors duration-500 hover:border-white/25 hover:bg-white/[0.05]",
-                    "hover:shadow-[0_24px_80px_rgba(124,58,237,0.12)]",
+                    "hyre-glow-border group relative h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl",
+                    "transition-colors duration-500 hover:border-[#7C3AED]/35 hover:bg-white/[0.05]",
+                    "hover:shadow-[0_24px_80px_rgba(124,58,237,0.18)]",
                     feature.span.includes("row-span-2") && "min-h-[340px] lg:min-h-[360px]",
                   )}
                 >
