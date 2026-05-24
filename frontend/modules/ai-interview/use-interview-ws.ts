@@ -29,6 +29,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [reportLoading, setReportLoading] = useState(false)
   const [interviewEnded, setInterviewEnded] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
+  const [aiSpeaking, setAiSpeaking] = useState(false)
   const [phase, setPhase] = useState<InterviewPhaseId | null>(null)
   const [phaseLabel, setPhaseLabel] = useState<string | null>(null)
   const [progressPct, setProgressPct] = useState(0)
@@ -92,7 +93,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
 
         if (data.type === "coaching_hint" && "hint" in data) setLastHint(data.hint)
         if (data.type === "ai_thinking" && "thinking" in data) {
-          setAiThinking(Boolean(data.thinking))
+          const thinking = Boolean(data.thinking)
+          setAiThinking(thinking)
+          if (thinking) setAiSpeaking(false)
         }
         if (data.type === "culture_insights" && data.insights) {
           setCultureInsights(data.insights)
@@ -107,6 +110,8 @@ export function useInterviewWebSocket(sessionId: string | null) {
           if ("difficulty" in data && data.difficulty) setDifficulty(data.difficulty)
         }
         if (data.type === "interviewer_message") {
+          setAiSpeaking(true)
+          setAiThinking(false)
           if ("agent_display_name" in data && data.agent_display_name) {
             setAgentDisplayName(String(data.agent_display_name))
           }
@@ -121,6 +126,8 @@ export function useInterviewWebSocket(sessionId: string | null) {
           appendConversation({ role: "interviewer", content: msg, question: q, phase: data.phase })
         }
         if (data.type === "interviewer_question" && "question" in data) {
+          setAiSpeaking(true)
+          setAiThinking(false)
           setLastQuestion(data.question)
           if (data.phase_label) setPhaseLabel(data.phase_label)
           if (data.phase) setPhase(data.phase as InterviewPhaseId)
@@ -180,6 +187,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
       if (!trimmed) return
       setTranscriptLines((prev) => [...prev, trimmed])
       appendConversation({ role: "candidate", content: trimmed })
+      setAiSpeaking(false)
       setAiThinking(true)
       send({ type: "transcript", text: trimmed, confidence })
     },
@@ -222,6 +230,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
     reportLoading,
     interviewEnded,
     aiThinking,
+    aiSpeaking,
     phase,
     phaseLabel,
     progressPct,

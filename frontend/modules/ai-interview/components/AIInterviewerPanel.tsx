@@ -10,6 +10,7 @@ interface AIInterviewerPanelProps {
   question: string | null
   connected: boolean
   thinking?: boolean
+  speaking?: boolean
   phaseLabel?: string | null
   progressPct?: number
   conversation?: ConversationEntry[]
@@ -19,6 +20,7 @@ export function AIInterviewerPanel({
   question,
   connected,
   thinking = false,
+  speaking = false,
   phaseLabel,
   progressPct = 0,
   conversation = [],
@@ -67,8 +69,10 @@ export function AIInterviewerPanel({
           <p className="text-xs text-[#C4B5FD]">
             {thinking
               ? "La IA está pensando…"
+              : speaking
+                ? "Entrevistador hablando…"
               : connected
-                ? "Entrevistador IA · en vivo"
+                ? "Escuchando tu respuesta…"
                 : "Conectando…"}
           </p>
           <AnimatePresence mode="wait">
