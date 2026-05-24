@@ -4,10 +4,6 @@ import { createMiddlewareClient } from "@/lib/supabase/middleware";
 const PUBLIC_ROUTES = ["/", "/empezar", "/app", "/login", "/register", "/pricing", "/auth"];
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/")) {
-    return NextResponse.next()
-  }
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

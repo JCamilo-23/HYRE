@@ -276,6 +276,7 @@ export function formatChallengeMessage(challenge: WorkChallenge): string {
 }
 
 export function createSessionData(input: {
+  user_id: string
   role_title?: string
   company_name?: string
   job_id?: string
@@ -307,7 +308,7 @@ export function createSessionData(input: {
 
   return {
     id,
-    user_id: "demo-user",
+    user_id: input.user_id,
     job_id: input.job_id ?? null,
     role_title: role,
     company_name: company,

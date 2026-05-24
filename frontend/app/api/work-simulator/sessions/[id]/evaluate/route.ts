@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processEvaluation } from "@/modules/work-simulator/service"
 import { getSession, saveSession } from "@/lib/work-simulator-session-store"
+import { createClient } from "@/lib/supabase/server"
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: Params) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ detail: "No autorizado" }, { status: 401 })
+  }
+
   const { id } = await params
-  const session = getSession(id)
+  const session = await getSession(id, supabase)
 
   if (!session) {
     return NextResponse.json({ detail: "Sesión no encontrada" }, { status: 404 })
@@ -20,7 +28,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const result = await processEvaluation(session, response)
-    saveSession(result.session)
+    await saveSession(result.session, supabase)
     return NextResponse.json({
       evaluation: result.evaluation,
       message: result.message,
