@@ -18,6 +18,62 @@ export interface ScenarioContext {
   simulation_started_at?: string
   notifications_enabled?: boolean
   compressed_mode?: boolean
+  /** Entrevista en vivo — reutiliza el mismo contexto del simulador */
+  interview_mode?: boolean
+  interview_question_index?: number
+  interview_question_titles?: string[]
+  current_interview_question?: InterviewQuestion | null
+  interview_transcript_log?: InterviewTranscriptEntry[]
+  interview_scores?: InterviewLiveScores
+  interview_max_questions?: number
+}
+
+export type InterviewQuestionCategory =
+  | "intro"
+  | "behavioral"
+  | "technical"
+  | "situational"
+  | "culture"
+  | "simulation_followup"
+  | "closing"
+
+export type InterviewDifficulty = "easy" | "medium" | "hard"
+
+export interface InterviewQuestion {
+  id: number
+  text: string
+  category: InterviewQuestionCategory
+  difficulty: InterviewDifficulty
+  focus_area: string
+  /** Contexto breve para el entrevistador (no se muestra al candidato) */
+  interviewer_notes?: string
+}
+
+export interface InterviewTranscriptEntry {
+  question_id: number
+  transcript: string
+  at: string
+}
+
+export interface InterviewAnswerEvaluation {
+  score: number
+  communication: number
+  confidence: number
+  relevance: number
+  technical_depth: number
+  feedback: string
+  strengths: string[]
+  improvements: string[]
+  passed: boolean
+}
+
+export interface InterviewLiveScores {
+  overall: number
+  communication: number
+  confidence: number
+  relevance: number
+  technical_depth: number
+  questions_answered: number
 }
 
 export interface WorkSimulatorSession {
@@ -84,4 +140,10 @@ export interface GenerateChallengeOptions {
   work_block?: WorkBlock
   sim_time_label?: string
   source?: "manual" | "scheduled" | "start"
+}
+
+export interface GenerateInterviewQuestionOptions {
+  difficulty?: InterviewDifficulty
+  /** Última transcripción del candidato — adapta la siguiente pregunta */
+  last_transcript?: string
 }
