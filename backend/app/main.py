@@ -45,6 +45,17 @@ app.include_router(
 )
 
 
+@app.get("/")
+def root():
+    return {
+        "service": "HYRE API",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+        "interview_engine": "/api/v1/interviews/health",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

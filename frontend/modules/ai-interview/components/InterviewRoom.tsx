@@ -78,19 +78,35 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
 
   useEffect(() => {
     let active = true
+    let mediaStream: MediaStream | null = null
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((media) => {
-        if (!active) return
+        if (!active) {
+          media.getTracks().forEach((t) => t.stop())
+          return
+        }
+        mediaStream = media
         setStream(media)
-        if (videoRef.current) videoRef.current.srcObject = media
+        if (videoRef.current) {
+          videoRef.current.srcObject = media
+        }
       })
-      .catch(() => setStream(null))
+      .catch((err) => {
+        console.error("getUserMedia failed:", err)
+        setStream(null)
+      })
     return () => {
       active = false
-      stream?.getTracks().forEach((t) => t.stop())
+      mediaStream?.getTracks().forEach((t) => t.stop())
     }
   }, [])
+
+  useEffect(() => {
+    if (stream && videoRef.current && videoRef.current.srcObject !== stream) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
 
   useEffect(() => {
     if (!stream || !videoRef.current || !canvasRef.current) return

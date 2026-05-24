@@ -155,6 +155,14 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
             difficulty="medium",
         )
         await ws_manager.send_json(websocket, {"type": "interviewer_question", "question": q})
+    else:
+        await ws_manager.send_json(
+            websocket,
+            {
+                "type": "interviewer_question",
+                "question": "Preséntate brevemente y describe tu experiencia más relevante para este puesto.",
+            },
+        )
 
     async def emit(event: str, payload: dict[str, Any]) -> None:
         await ws_manager.broadcast(session_id, {"type": event, **payload}, exclude=conn_id)
