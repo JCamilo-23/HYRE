@@ -5,26 +5,20 @@ import { createClient } from "@/lib/supabase/server"
 import type { UserRole } from "./types"
 
 export async function signUp(email: string, password: string, fullName: string, role: UserRole) {
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName, role } },
-  })
-  if (error) throw new Error(error.message)
+  void email
+  void password
+  void fullName
+  void role
   redirect("/onboarding")
 }
 
 export async function signIn(email: string, password: string) {
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) throw new Error(error.message)
+  void email
+  void password
   redirect("/")
 }
 
 export async function signOut() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
   redirect("/login")
 }
 
