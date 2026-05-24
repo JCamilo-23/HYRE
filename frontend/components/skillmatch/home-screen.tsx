@@ -12,7 +12,7 @@ import {
   Trophy,
   TrendingUp,
 } from "lucide-react"
-import { Screen, UserData } from "@/app/page"
+import { Screen, UserData } from "@/lib/hyre-types"
 
 interface HomeScreenProps {
   onNavigate: (screen: Screen) => void

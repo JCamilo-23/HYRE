@@ -11,7 +11,7 @@ import {
   Target,
   Briefcase
 } from "lucide-react"
-import { Screen, UserData } from "@/app/page"
+import { Screen, UserData } from "@/lib/hyre-types"
 
 interface ProfileScreenProps {
   onNavigate: (screen: Screen) => void

@@ -18,7 +18,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import type { Screen } from "@/app/page"
+import type { Screen } from "@/lib/hyre-types"
 
 interface SimulationScreenProps {
   onNavigate: (screen: Screen) => void
