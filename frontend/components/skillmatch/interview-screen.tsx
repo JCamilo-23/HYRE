@@ -8,7 +8,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Screen } from "@/lib/hyre-types"
-import { useSpeechRecognition } from "@/modules/ai-interview/use-speech-recognition"
 
 interface InterviewScreenProps {
   onNavigate: (screen: Screen) => void
@@ -41,6 +40,13 @@ const checklistItems = [
 
 const JOB_CONTEXT = "Desarrollador Full Stack — HYRE"
 
+type SpeechRecognitionCtor = new () => SpeechRecognition
+function getSR(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null
+  const w = window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
+}
+
 export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [stage, setStage] = useState<Stage>("prep")
   const [accepted, setAccepted] = useState(false)
@@ -49,28 +55,120 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<Report | null>(null)
   const [timer, setTimer] = useState(0)
-
-  // Camera / mic state
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [stream, setStream] = useState<MediaStream | null>(null)
   const [micOn, setMicOn] = useState(true)
   const [cameraOn, setCameraOn] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
+  const [sttListening, setSttListening] = useState(false)
+  const [sttInterim, setSttInterim] = useState("")
+  const [sttSupported, setSttSupported] = useState(false)
 
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const messagesRef = useRef<Message[]>([])
+  const loadingRef = useRef(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const srRef = useRef<SpeechRecognition | null>(null)
+  const pendingRef = useRef("")
+  const autoSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Referencia para handleSend accesible desde el callback de STT
-  const pendingTranscriptRef = useRef<string>("")
-  const autoSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Sync refs
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  useEffect(() => { loadingRef.current = loading }, [loading])
 
-  const triggerSend = useCallback((text: string) => {
-    if (!text.trim()) return
+  // Timer
+  useEffect(() => {
+    if (stage !== "live") return
+    const id = setInterval(() => setTimer(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [stage])
+
+  // Auto-scroll
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  // Camera setup — solo cuando entra en "live"
+  useEffect(() => {
+    if (stage !== "live") return
+    let active = true
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(media => {
+        if (!active) { media.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = media
+        if (videoRef.current) videoRef.current.srcObject = media
+      })
+      .catch(err => {
+        const name = err instanceof DOMException ? err.name : ""
+        setMediaError(
+          name === "NotAllowedError" || name === "PermissionDeniedError"
+            ? "Permiso de cámara denegado."
+            : "No se encontró cámara."
+        )
+      })
+    return () => {
+      active = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }, [stage])
+
+  // Restaurar srcObject cuando cameraOn vuelve a true
+  useEffect(() => {
+    if (cameraOn && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraOn])
+
+  // STT setup — una sola vez
+  useEffect(() => {
+    const SR = getSR()
+    if (!SR) return
+    setSttSupported(true)
+    const sr = new SR()
+    sr.lang = "es-ES"
+    sr.continuous = true
+    sr.interimResults = true
+    sr.maxAlternatives = 1
+
+    sr.onresult = (ev) => {
+      let interim = ""
+      let final = ""
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ev.results[i][0]?.transcript ?? ""
+        if (ev.results[i].isFinal) final += t
+        else interim += t
+      }
+      if (interim) setSttInterim(interim)
+      if (final.trim()) {
+        setSttInterim("")
+        if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+        pendingRef.current = (pendingRef.current + " " + final).trim()
+        setInput(pendingRef.current)
+        autoSendTimer.current = setTimeout(() => {
+          const text = pendingRef.current
+          pendingRef.current = ""
+          if (text && !loadingRef.current) doSend(text)
+        }, 1800)
+      }
+    }
+    sr.onerror = () => setSttListening(false)
+    sr.onend = () => setSttListening(false)
+    srRef.current = sr
+    return () => { sr.stop(); srRef.current = null }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const doSend = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || loadingRef.current) return
     setInput("")
-    pendingTranscriptRef.current = ""
-    const updated: Message[] = [...messagesRef.current, { role: "user", content: text.trim() }]
+    pendingRef.current = ""
+    const updated: Message[] = [...messagesRef.current, { role: "user", content: trimmed }]
     setMessages(updated)
+    messagesRef.current = updated
+    loadingRef.current = true
     setLoading(true)
+
     fetch("/api/interviews/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -81,86 +179,62 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         const final: Message[] = [...updated, { role: "assistant", content: reply }]
         setMessages(final)
         messagesRef.current = final
+        loadingRef.current = false
         setLoading(false)
-        if (finished) setTimeout(() => generateReport(final), 1200)
+        if (finished) setTimeout(() => doGenerateReport(final), 1200)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { loadingRef.current = false; setLoading(false) })
   }, [])
 
-  // Speech-to-text — transcribe y envía automáticamente tras pausa de 1.5s
-  const { supported: sttSupported, listening: sttListening, interim: sttInterim, toggle: toggleStt } = useSpeechRecognition({
-    lang: "es-ES",
-    onFinalTranscript: (text) => {
-      if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
-      pendingTranscriptRef.current = (pendingTranscriptRef.current + " " + text).trim()
-      setInput(pendingTranscriptRef.current)
-      autoSendTimerRef.current = setTimeout(() => {
-        const toSend = pendingTranscriptRef.current
-        if (toSend) triggerSend(toSend)
-      }, 1500)
-    },
-    onInterimTranscript: (text) => setInput((pendingTranscriptRef.current + " " + text).trim()),
-  })
-
-  // Timer
-  useEffect(() => {
-    if (stage !== "live") return
-    const id = setInterval(() => setTimer((t) => t + 1), 1000)
-    return () => clearInterval(id)
-  }, [stage])
-
-  // Sync ref con state para callbacks
-  useEffect(() => { messagesRef.current = messages }, [messages])
-
-  // Auto-scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
-
-  // Camera setup when live starts
-  useEffect(() => {
-    if (stage !== "live") return
-    let active = true
-    let mediaStream: MediaStream | null = null
-
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((media) => {
-        if (!active) { media.getTracks().forEach(t => t.stop()); return }
-        mediaStream = media
-        setStream(media)
-        if (videoRef.current) videoRef.current.srcObject = media
+  const doGenerateReport = useCallback(async (history: Message[]) => {
+    if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+    srRef.current?.stop()
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setStage("processing")
+    try {
+      const res = await fetch("/api/interviews/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history, jobContext: JOB_CONTEXT }),
       })
-      .catch((err) => {
-        const name = err instanceof DOMException ? err.name : ""
-        if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-          setMediaError("Permiso de cámara denegado. Puedes continuar escribiendo.")
-        } else {
-          setMediaError("No se encontró cámara. Puedes continuar escribiendo.")
-        }
-      })
+      setReport(await res.json())
+    } catch { /* usa fallback del backend */ }
+    setStage("report")
+  }, [])
 
-    return () => {
-      active = false
-      mediaStream?.getTracks().forEach(t => t.stop())
+  const toggleStt = useCallback(() => {
+    const sr = srRef.current
+    if (!sr) return
+    if (sttListening) {
+      sr.stop()
+      setSttListening(false)
+    } else {
+      try { sr.start(); setSttListening(true) } catch { /* ya corriendo */ }
     }
-  }, [stage])
-
-  const formatTime = (s: number) =>
-    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+  }, [sttListening])
 
   const handleToggleMic = useCallback(() => {
     setMicOn(prev => {
-      stream?.getAudioTracks().forEach(t => { t.enabled = !prev })
+      streamRef.current?.getAudioTracks().forEach(t => { t.enabled = !prev })
       return !prev
     })
-  }, [stream])
+  }, [])
 
   const handleToggleCamera = useCallback(() => {
     setCameraOn(prev => {
-      stream?.getVideoTracks().forEach(t => { t.enabled = !prev })
-      return !prev
+      const next = !prev
+      streamRef.current?.getVideoTracks().forEach(t => { t.enabled = next })
+      return next
     })
-  }, [stream])
+  }, [])
+
+  const handleSend = useCallback(() => {
+    if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+    const text = input.trim()
+    if (!text) return
+    doSend(text)
+  }, [input, doSend])
 
   const handleStart = async () => {
     setLoading(true)
@@ -170,46 +244,23 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
       body: JSON.stringify({ history: [], jobContext: JOB_CONTEXT }),
     })
     const { reply } = await res.json()
-    const initial = [{ role: "assistant" as const, content: reply }]
+    const initial: Message[] = [{ role: "assistant", content: reply }]
     setMessages(initial)
     messagesRef.current = initial
     setLoading(false)
     setStage("live")
   }
 
-  const handleSend = () => {
-    const text = input.replace(/\s*\[.*?\]\s*$/, "").trim()
-    if (!text || loading) return
-    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
-    triggerSend(text)
-  }
-
-  const generateReport = useCallback(async (history: Message[]) => {
-    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
-    stream?.getTracks().forEach(t => t.stop())
-    setStream(null)
-    setStage("processing")
-    const res = await fetch("/api/interviews/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history, jobContext: JOB_CONTEXT }),
-    })
-    const data = await res.json()
-    setReport(data)
-    setStage("report")
-  }, [stream])
+  const formatTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
 
   // ── PREP ──────────────────────────────────────────────────────────────────
   if (stage === "prep") {
     return (
       <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
-        <button
-          onClick={() => onNavigate("home")}
-          className="flex items-center gap-2 text-[#94A3B8] hover:text-[#F1F5F9] transition-colors mb-6"
-        >
+        <button onClick={() => onNavigate("home")} className="flex items-center gap-2 text-[#94A3B8] hover:text-[#F1F5F9] transition-colors mb-6">
           <ArrowLeft className="w-5 h-5" /> Volver
         </button>
-
         <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">Entrevista con IA</h1>
         <p className="text-[#94A3B8] text-sm mb-8">Practica con nuestro entrevistador IA impulsado por Gemini</p>
 
@@ -231,45 +282,27 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         <div className="glass rounded-2xl p-4 mb-6">
           <h3 className="text-[#F1F5F9] font-medium mb-3">Información</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[#94A3B8]">Duración estimada</span>
-              <span className="text-[#F1F5F9]">15-20 minutos</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[#94A3B8]">Preguntas</span>
-              <span className="text-[#F1F5F9]">6-8 dinámicas</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[#94A3B8]">Powered by</span>
-              <span className="text-[#7C3AED] font-medium">Gemini AI</span>
-            </div>
+            <div className="flex justify-between"><span className="text-[#94A3B8]">Duración estimada</span><span className="text-[#F1F5F9]">15-20 minutos</span></div>
+            <div className="flex justify-between"><span className="text-[#94A3B8]">Preguntas</span><span className="text-[#F1F5F9]">6-8 dinámicas</span></div>
+            <div className="flex justify-between"><span className="text-[#94A3B8]">Powered by</span><span className="text-[#7C3AED] font-medium">Gemini AI</span></div>
           </div>
         </div>
 
         <div className="glass rounded-2xl p-4 mb-auto">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
-            <p className="text-[#94A3B8] text-xs leading-relaxed">
-              Esta es una entrevista de práctica con IA. Tus respuestas se usan para generar retroalimentación personalizada.
-            </p>
+            <p className="text-[#94A3B8] text-xs leading-relaxed">Esta es una entrevista de práctica con IA. Tus respuestas se usan para generar retroalimentación personalizada.</p>
           </div>
         </div>
 
         <label className="flex items-start gap-3 my-4 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-1 w-4 h-4 rounded border-[#475569] bg-[#1A1A2E] text-[#7C3AED] focus:ring-[#7C3AED]"
-          />
+          <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)}
+            className="mt-1 w-4 h-4 rounded border-[#475569] bg-[#1A1A2E] text-[#7C3AED] focus:ring-[#7C3AED]" />
           <span className="text-[#94A3B8] text-sm">Acepto que mis respuestas sean analizadas por IA</span>
         </label>
 
-        <Button
-          onClick={handleStart}
-          disabled={!accepted || loading}
-          className={`w-full h-14 font-medium text-base flex items-center justify-center gap-2 ${accepted && !loading ? "btn-primary-gradient text-[#F1F5F9]" : "bg-[#1A1A2E] text-[#475569] cursor-not-allowed"}`}
-        >
+        <Button onClick={handleStart} disabled={!accepted || loading}
+          className={`w-full h-14 font-medium text-base flex items-center justify-center gap-2 ${accepted && !loading ? "btn-primary-gradient text-[#F1F5F9]" : "bg-[#1A1A2E] text-[#475569] cursor-not-allowed"}`}>
           {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Iniciando...</> : <><Video className="w-5 h-5" /> Iniciar entrevista</>}
         </Button>
       </div>
@@ -302,9 +335,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
               <span className="text-3xl font-bold text-[#7C3AED]">{report.score}</span>
             </div>
             <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-1">Tu reporte</h1>
-            <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ color: recColor, backgroundColor: `${recColor}20` }}>
-              {report.recommendation}
-            </span>
+            <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ color: recColor, backgroundColor: `${recColor}20` }}>{report.recommendation}</span>
           </div>
 
           <div className="glass rounded-2xl p-4 mb-4">
@@ -321,12 +352,8 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
                     <span className="text-[#F1F5F9]">{val}%</span>
                   </div>
                   <div className="h-1.5 bg-[#1A1A2E] rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${val}%` }}
-                      transition={{ delay: 0.3, duration: 0.8 }}
-                      className="h-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] rounded-full"
-                    />
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${val}%` }} transition={{ delay: 0.3, duration: 0.8 }}
+                      className="h-full bg-gradient-to-r from-[#7C3AED] to-[#06B6D4] rounded-full" />
                   </div>
                 </div>
               ))}
@@ -336,36 +363,21 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           <div className="glass rounded-2xl p-4 mb-4">
             <h3 className="text-[#10B981] font-medium mb-2">Fortalezas</h3>
             <ul className="space-y-1">
-              {report.strengths.map((s, i) => (
-                <li key={i} className="text-[#94A3B8] text-sm flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" />{s}
-                </li>
-              ))}
+              {report.strengths.map((s, i) => <li key={i} className="text-[#94A3B8] text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" />{s}</li>)}
             </ul>
           </div>
 
           <div className="glass rounded-2xl p-4 mb-8">
             <h3 className="text-[#F59E0B] font-medium mb-2">Áreas de mejora</h3>
             <ul className="space-y-1">
-              {report.improvements.map((s, i) => (
-                <li key={i} className="text-[#94A3B8] text-sm flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-[#F59E0B] mt-0.5 shrink-0" />{s}
-                </li>
-              ))}
+              {report.improvements.map((s, i) => <li key={i} className="text-[#94A3B8] text-sm flex items-start gap-2"><Sparkles className="w-4 h-4 text-[#F59E0B] mt-0.5 shrink-0" />{s}</li>)}
             </ul>
           </div>
 
           <div className="flex gap-3">
-            <Button
-              onClick={() => { setStage("prep"); setMessages([]); setTimer(0); setReport(null) }}
-              variant="outline"
-              className="flex-1 h-12 glass border-white/15 text-[#F1F5F9]"
-            >
-              Reintentar
-            </Button>
-            <Button onClick={() => onNavigate("home")} className="flex-1 h-12 btn-primary-gradient text-[#F1F5F9]">
-              Volver al inicio
-            </Button>
+            <Button onClick={() => { setStage("prep"); setMessages([]); setTimer(0); setReport(null) }}
+              variant="outline" className="flex-1 h-12 glass border-white/15 text-[#F1F5F9]">Reintentar</Button>
+            <Button onClick={() => onNavigate("home")} className="flex-1 h-12 btn-primary-gradient text-[#F1F5F9]">Volver al inicio</Button>
           </div>
         </motion.div>
       </div>
@@ -375,7 +387,6 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   // ── LIVE ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A12]">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 glass shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#EF4444] animate-pulse" />
@@ -385,58 +396,44 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         <span className="text-[#94A3B8] text-xs">{messages.filter(m => m.role === "assistant").length} / 8</span>
       </div>
 
-      {/* Camera + chat area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-
-        {/* Camera preview */}
+        {/* Camera — siempre montada, controlada por CSS */}
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-[#1A1A2E] mb-2">
-          {cameraOn && !mediaError ? (
-            <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`w-full h-full object-cover ${cameraOn && !mediaError ? "" : "hidden"}`}
+          />
+          {(!cameraOn || mediaError) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <VideoOff className="w-10 h-10 text-[#475569]" />
               {mediaError && <p className="text-xs text-[#475569] text-center px-4">{mediaError}</p>}
             </div>
           )}
-
-          {/* AI avatar overlay */}
           <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 rounded-full px-3 py-1.5">
             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center">
               <span className="text-white text-[10px] font-bold">AI</span>
             </div>
             <span className="text-white text-xs">Alex — Entrevistador IA</span>
           </div>
-
-          {/* Mic / camera controls overlay */}
           <div className="absolute bottom-3 right-3 flex gap-2">
-            <button
-              onClick={handleToggleMic}
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${micOn ? "bg-white/20" : "bg-[#EF4444]"}`}
-            >
+            <button onClick={handleToggleMic} className={`w-8 h-8 rounded-full flex items-center justify-center ${micOn ? "bg-white/20" : "bg-[#EF4444]"}`}>
               {micOn ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-white" />}
             </button>
-            <button
-              onClick={handleToggleCamera}
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${cameraOn ? "bg-white/20" : "bg-[#EF4444]"}`}
-            >
+            <button onClick={handleToggleCamera} className={`w-8 h-8 rounded-full flex items-center justify-center ${cameraOn ? "bg-white/20" : "bg-[#EF4444]"}`}>
               {cameraOn ? <Video className="w-4 h-4 text-white" /> : <VideoOff className="w-4 h-4 text-white" />}
             </button>
           </div>
         </div>
 
-        {/* Chat messages */}
         <AnimatePresence>
           {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-            >
+            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "assistant" ? "bg-gradient-to-br from-[#7C3AED] to-[#06B6D4]" : "bg-[#1A1A2E]"}`}>
-                {msg.role === "assistant"
-                  ? <span className="text-white text-xs font-bold">AI</span>
-                  : <User className="w-4 h-4 text-[#94A3B8]" />}
+                {msg.role === "assistant" ? <span className="text-white text-xs font-bold">AI</span> : <User className="w-4 h-4 text-[#94A3B8]" />}
               </div>
               <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${msg.role === "assistant" ? "bg-[#1A1A2E] text-[#F1F5F9]" : "bg-[#7C3AED] text-white"}`}>
                 {msg.content}
@@ -460,40 +457,32 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="px-4 pb-6 pt-3 glass shrink-0">
         {sttListening && sttInterim && (
-          <p className="text-xs text-[#7C3AED] mb-1 px-1">🎙 {sttInterim}</p>
+          <p className="text-xs text-[#7C3AED] mb-1 px-1 truncate">🎙 {sttInterim}</p>
         )}
         <div className="flex gap-2">
           {sttSupported && (
-            <button
-              onClick={toggleStt}
-              className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10"}`}
-            >
+            <button onClick={toggleStt}
+              className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 transition-colors ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
               <Mic className="w-4 h-4 text-white" />
             </button>
           )}
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
             placeholder={sttSupported ? "Habla o escribe tu respuesta..." : "Escribe tu respuesta..."}
             rows={2}
             className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none resize-none"
           />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || loading}
-            className="w-10 h-10 self-end rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9F67FF] flex items-center justify-center disabled:opacity-40"
-          >
+          <button onClick={handleSend} disabled={!input.trim() || loading}
+            className="w-10 h-10 self-end rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9F67FF] flex items-center justify-center disabled:opacity-40">
             <Send className="w-4 h-4 text-white" />
           </button>
         </div>
-        <button
-          onClick={() => generateReport(messages)}
-          className="mt-2 w-full text-xs text-[#475569] hover:text-[#94A3B8] transition-colors"
-        >
+        <button onClick={() => doGenerateReport(messages)}
+          className="mt-2 w-full text-xs text-[#475569] hover:text-[#94A3B8] transition-colors">
           Terminar entrevista anticipadamente
         </button>
       </div>
