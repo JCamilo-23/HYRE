@@ -1,117 +1,59 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getCvFallbackAnalysis } from "@/lib/cv-fallback"
-import { getGeminiApiKey, getGeminiModels } from "@/lib/gemini-server"
-import type { CvAnalysis } from "@/lib/hyre-types"
+import {
+  analyzeCvFromDocument,
+  analyzeCvFromPlainText,
+} from "@/lib/cv-analyzer"
+import { getGeminiApiKey } from "@/lib/gemini-server"
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
+
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "text/plain",
   "image/png",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
 ])
 
-const CV_SYSTEM_PROMPT = `Eres un experto en reclutamiento y analisis de CVs para HYRE.
-Analiza el curriculum (texto, PDF o imagen escaneada) y extrae informacion precisa en espanol (Latinoamerica).
-Si recibes una imagen, lee todo el texto visible del CV antes de analizar.
-Responde UNICAMENTE con JSON valido, sin markdown ni texto adicional.`
+function resolveMimeType(file: File): string | null {
+  if (file.type && ALLOWED_MIME.has(file.type)) return file.type
 
-const CV_JSON_SCHEMA = `{
-  "summary": "resumen de 2-3 oraciones del perfil",
-  "keyPoints": ["punto clave 1", "punto clave 2", "..."],
-  "skills": ["habilidad1", "habilidad2", "..."],
-  "experience": [{ "role": "cargo", "company": "empresa", "duration": "periodo" }],
-  "education": ["formacion 1", "..."],
-  "strengths": ["fortaleza 1", "..."],
-  "suggestions": ["sugerencia de mejora 1", "..."]
-}`
-
-function stripJsonFences(raw: string): string {
-  let text = raw.trim()
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
+  const ext = file.name.split(".").pop()?.toLowerCase()
+  const byExt: Record<string, string> = {
+    pdf: "application/pdf",
+    txt: "text/plain",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
   }
-  return text.trim()
+
+  return ext ? (byExt[ext] ?? null) : null
 }
 
-function parseAnalysis(raw: string): CvAnalysis | null {
-  try {
-    const parsed = JSON.parse(stripJsonFences(raw)) as CvAnalysis
-    if (!parsed.summary || !Array.isArray(parsed.keyPoints)) return null
-    return {
-      summary: parsed.summary,
-      keyPoints: parsed.keyPoints ?? [],
-      skills: parsed.skills ?? [],
-      experience: parsed.experience ?? [],
-      education: parsed.education ?? [],
-      strengths: parsed.strengths ?? [],
-      suggestions: parsed.suggestions ?? [],
-    }
-  } catch {
-    return null
-  }
-}
-
-async function analyzeWithGemini(
-  apiKey: string,
-  parts: { text?: string; inlineData?: { mimeType: string; data: string } }[],
-): Promise<CvAnalysis | null> {
-  const userParts = parts.map((p) => {
-    if (p.inlineData) {
-      return {
-        inline_data: {
-          mime_type: p.inlineData.mimeType,
-          data: p.inlineData.data,
-        },
-      }
-    }
-    return { text: p.text ?? "" }
-  })
-
-  userParts.push({
-    text: `Extrae los puntos clave de este CV. Estructura requerida:\n${CV_JSON_SCHEMA}`,
-  })
-
-  for (const model of getGeminiModels()) {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: CV_SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: userParts }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
-        }),
-      },
-    )
-
-    if (!res.ok) {
-      console.warn(`Gemini CV ${model}:`, await res.text())
-      continue
-    }
-
-    const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[]
-    }
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-    if (text) {
-      const analysis = parseAnalysis(text)
-      if (analysis) return analysis
-    }
-  }
-
-  return null
+function isImageMime(mime: string): boolean {
+  return mime.startsWith("image/")
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const contentType = request.headers.get("content-type") ?? ""
     const apiKey = getGeminiApiKey()
 
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error:
+            "Analisis con IA no disponible. Configura GEMINI_API_KEY en el servidor para leer imagenes y CVs.",
+        },
+        { status: 503 },
+      )
+    }
+
+    const contentType = request.headers.get("content-type") ?? ""
+
     if (contentType.includes("application/json")) {
-      const body = (await request.json()) as { text?: string; fileName?: string }
+      const body = (await request.json()) as { text?: string }
       const text = body.text?.trim()
 
       if (!text || text.length < 50) {
@@ -121,15 +63,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (!apiKey) {
-        return NextResponse.json({ analysis: getCvFallbackAnalysis(body.fileName), fallback: true })
+      const analysis = await analyzeCvFromPlainText(apiKey, text)
+      if (!analysis) {
+        return NextResponse.json(
+          { error: "No se pudo analizar el CV. Intenta de nuevo." },
+          { status: 422 },
+        )
       }
 
-      const analysis = await analyzeWithGemini(apiKey, [{ text }])
-      return NextResponse.json({
-        analysis: analysis ?? getCvFallbackAnalysis(body.fileName),
-        fallback: !analysis,
-      })
+      return NextResponse.json({ analysis, extractedText: text, source: "text" })
     }
 
     const formData = await request.formData()
@@ -143,56 +85,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "El archivo supera el limite de 5 MB." }, { status: 400 })
     }
 
-    if (!ALLOWED_MIME.has(file.type) && !file.name.match(/\.(pdf|txt|png|doc|docx)$/i)) {
+    const mimeType = resolveMimeType(file)
+    if (!mimeType) {
       return NextResponse.json(
-        { error: "Formato no soportado. Usa PDF, PNG o TXT." },
+        { error: "Formato no soportado. Usa PDF, PNG, JPG o TXT." },
         { status: 400 },
       )
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf")
-    const isPng = file.type === "image/png" || file.name.endsWith(".png")
-    const isTxt = file.type === "text/plain" || file.name.endsWith(".txt")
+    const base64 = buffer.toString("base64")
 
-    if (!apiKey) {
-      return NextResponse.json({ analysis: getCvFallbackAnalysis(file.name), fallback: true })
-    }
-
-    if (isPdf || isPng) {
-      const analysis = await analyzeWithGemini(apiKey, [
-        {
-          inlineData: {
-            mimeType: isPdf ? "application/pdf" : "image/png",
-            data: buffer.toString("base64"),
-          },
-        },
-      ])
-      return NextResponse.json({
-        analysis: analysis ?? getCvFallbackAnalysis(file.name),
-        fallback: !analysis,
-      })
-    }
-
-    if (isTxt) {
+    if (mimeType === "text/plain") {
       const text = buffer.toString("utf-8").trim()
       if (text.length < 50) {
+        return NextResponse.json({ error: "El CV en texto es muy corto." }, { status: 400 })
+      }
+
+      const analysis = await analyzeCvFromPlainText(apiKey, text)
+      if (!analysis) {
         return NextResponse.json(
-          { error: "El CV en texto es muy corto." },
-          { status: 400 },
+          { error: "No se pudo analizar el CV." },
+          { status: 422 },
         )
       }
-      const analysis = await analyzeWithGemini(apiKey, [{ text }])
-      return NextResponse.json({
-        analysis: analysis ?? getCvFallbackAnalysis(file.name),
-        fallback: !analysis,
-      })
+
+      return NextResponse.json({ analysis, extractedText: text, source: "text" })
     }
 
-    return NextResponse.json(
-      { error: "DOC/DOCX aun no soportado. Sube PDF, PNG o TXT." },
-      { status: 400 },
-    )
+    const result = await analyzeCvFromDocument(apiKey, mimeType, base64)
+
+    if (!result) {
+      const hint = isImageMime(mimeType)
+        ? "No se pudo leer la imagen. Asegurate de que sea un CV legible, bien iluminado y con texto claro."
+        : "No se pudo leer el documento. Verifica que sea un CV valido."
+
+      return NextResponse.json({ error: hint }, { status: 422 })
+    }
+
+    return NextResponse.json({
+      analysis: result.analysis,
+      extractedText: result.extractedText,
+      source: isImageMime(mimeType) ? "vision" : "document",
+    })
   } catch (error) {
     console.error("CV analyze error:", error)
     return NextResponse.json({ error: "Error al analizar el CV." }, { status: 500 })

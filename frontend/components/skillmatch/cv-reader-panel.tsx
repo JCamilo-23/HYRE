@@ -28,13 +28,16 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [analysis, setAnalysis] = useState<CvAnalysis | null>(null)
-  const [usedFallback, setUsedFallback] = useState(false)
+  const [extractedText, setExtractedText] = useState<string | null>(null)
+  const [source, setSource] = useState<"vision" | "document" | "text" | null>(null)
+  const [showExtracted, setShowExtracted] = useState(false)
 
   const analyzeFile = async (file: File) => {
     setLoading(true)
     setError(null)
     setFileName(file.name)
-    setUsedFallback(false)
+    setExtractedText(null)
+    setSource(null)
 
     try {
       const formData = new FormData()
@@ -47,7 +50,8 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
 
       const data = (await res.json()) as {
         analysis?: CvAnalysis
-        fallback?: boolean
+        extractedText?: string
+        source?: "vision" | "document" | "text"
         error?: string
       }
 
@@ -55,8 +59,13 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
         throw new Error(data.error ?? "No se pudo analizar el CV")
       }
 
-      setAnalysis(data.analysis ?? null)
-      setUsedFallback(Boolean(data.fallback))
+      if (!data.analysis) {
+        throw new Error("La IA no devolvio un analisis valido.")
+      }
+
+      setAnalysis(data.analysis)
+      setExtractedText(data.extractedText ?? null)
+      setSource(data.source ?? null)
       setOpen(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado")
@@ -76,7 +85,7 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.txt,.png,application/pdf,text/plain,image/png"
+        accept=".pdf,.txt,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,image/png,image/jpeg,image/webp"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -97,10 +106,10 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
           <p className="text-[#F1F5F9] font-medium">Lector de CV</p>
           <p className="text-[#94A3B8] text-xs truncate">
             {loading
-              ? "Analizando con IA..."
+              ? "Leyendo documento con IA..."
               : fileName
                 ? fileName
-                : "Sube tu CV (PDF, PNG o TXT) — la IA detecta puntos clave"}
+                : "Sube tu CV (PDF, PNG, JPG o TXT) — analisis real con IA"}
           </p>
         </div>
         {analysis ? (
@@ -137,9 +146,29 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
             className="overflow-hidden"
           >
             <div className="pt-4 space-y-4">
-              {usedFallback && (
-                <div className="px-3 py-2 rounded-lg bg-[#F59E0B]/10 border border-[#F59E0B]/20 text-[#F59E0B] text-xs">
-                  Analisis de demostracion — configura GEMINI_API_KEY para analisis real con IA.
+              {source === "vision" && (
+                <div className="px-3 py-2 rounded-lg bg-[#10B981]/10 border border-[#10B981]/20 text-[#10B981] text-xs">
+                  Analisis real extraido de la imagen con OCR + IA
+                </div>
+              )}
+
+              {extractedText && (
+                <div className="glass rounded-xl p-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowExtracted(!showExtracted)}
+                    className="w-full flex items-center justify-between text-left"
+                  >
+                    <p className="text-[#F1F5F9] text-sm font-medium">Texto detectado en el CV</p>
+                    <ChevronDown
+                      className={`w-4 h-4 text-[#94A3B8] transition-transform ${showExtracted ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {showExtracted && (
+                    <pre className="mt-3 text-[#94A3B8] text-xs leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                      {extractedText}
+                    </pre>
+                  )}
                 </div>
               )}
 
