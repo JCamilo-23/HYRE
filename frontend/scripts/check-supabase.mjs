@@ -39,15 +39,14 @@ const host = new URL(url).hostname
 console.log(`   URL: ${url}`)
 
 if (host.includes("placeholder") || host === "your-project.supabase.co") {
-  console.error("\n❌ Credenciales PLACEHOLDER — el login NO funcionará")
-  console.log("\n📋 Pasos:")
-  console.log("   1. https://supabase.com/dashboard → New project")
-  console.log("   2. Settings → API → copia URL y anon key")
-  console.log("   3. Pega en frontend/.env.local")
-  console.log("   4. Authentication → URL Configuration:")
-  console.log("      Site URL: http://localhost:3000")
-  console.log("      Redirect: http://localhost:3000/auth/callback")
-  console.log("   5. npm run dev (reinicia el servidor)\n")
+  console.error("\n❌ URL placeholder — actualiza NEXT_PUBLIC_SUPABASE_URL")
+  process.exit(1)
+}
+
+if (key.includes("PASTE") || key.includes("placeholder") || key.includes("your-anon")) {
+  console.error("\n❌ Falta la anon public key")
+  console.log(`\n   Obténla en: https://supabase.com/dashboard/project/${host.replace(".supabase.co", "")}/settings/api`)
+  console.log("   Pega en frontend/.env.local → NEXT_PUBLIC_SUPABASE_ANON_KEY\n")
   process.exit(1)
 }
 

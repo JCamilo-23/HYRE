@@ -25,43 +25,60 @@ export function SupabaseConfigBanner() {
           <p className="font-medium text-amber-200">Supabase no configurado — login bloqueado</p>
           {hostname && (
             <p className="text-xs text-amber-200/80">
-              Actualmente: <code className="rounded bg-[#1E293B] px-1">{hostname}</code>
+              Proyecto: <code className="rounded bg-[#1E293B] px-1">{hostname}</code>
+              {status.urlValid && !status.keyValid && " — URL OK, falta anon key"}
             </p>
           )}
           <p className="text-[#94A3B8] leading-relaxed">{status.message}</p>
           <ol className="list-decimal space-y-1 pl-4 text-xs text-[#94A3B8]">
-            <li>
-              Crea proyecto en{" "}
-              <a
-                href="https://supabase.com/dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#C4B5FD] hover:underline"
-              >
-                supabase.com/dashboard
-              </a>
-            </li>
-            <li>Settings → API → copia Project URL y anon public key</li>
+            {status.dashboardApiUrl ? (
+              <li>
+                Copia la <strong>anon public</strong> key desde{" "}
+                <a
+                  href={status.dashboardApiUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#C4B5FD] hover:underline"
+                >
+                  Settings → API
+                </a>
+              </li>
+            ) : (
+              <li>
+                Crea proyecto en{" "}
+                <a
+                  href="https://supabase.com/dashboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#C4B5FD] hover:underline"
+                >
+                  supabase.com/dashboard
+                </a>
+              </li>
+            )}
             <li>
               Pega en{" "}
               <code className="rounded bg-[#1E293B] px-1 py-0.5 text-[#E2E8F0]">
                 frontend/.env.local
-              </code>
+              </code>{" "}
+              como NEXT_PUBLIC_SUPABASE_ANON_KEY
             </li>
             <li>
               Abre la app en <strong className="text-amber-200">http://localhost:3000</strong>
             </li>
-            <li>Verifica con: npm run supabase:check</li>
+            <li>Verifica: npm run supabase:check</li>
           </ol>
-          <a
-            href="https://supabase.com/dashboard/project/_/auth/providers"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-[#C4B5FD] hover:text-[#E9D5FF]"
-          >
-            Configurar Google / Apple / LinkedIn
-            <ExternalLink className="h-3 w-3" />
-          </a>
+          {status.dashboardApiUrl && (
+            <a
+              href={status.dashboardApiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-[#C4B5FD] hover:text-[#E9D5FF]"
+            >
+              Abrir API keys del proyecto
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
         </div>
       </div>
     </div>

@@ -1,11 +1,25 @@
 const PLACEHOLDER_HOSTS = ["placeholder.supabase.co", "your-project.supabase.co"]
-const PLACEHOLDER_KEY_MARKERS = ["placeholder", "your-anon-key"]
+const PLACEHOLDER_KEY_MARKERS = ["placeholder", "your-anon-key", "paste_anon"]
 
 export interface SupabaseConfigStatus {
   configured: boolean
   url: string | null
-  reason: "missing" | "placeholder" | "invalid_url" | null
+  urlValid: boolean
+  keyValid: boolean
+  projectRef: string | null
+  reason: "missing" | "placeholder_url" | "placeholder_key" | "invalid_url" | null
   message: string | null
+  dashboardApiUrl: string | null
+}
+
+function extractProjectRef(url: string): string | null {
+  try {
+    const host = new URL(url).hostname
+    const match = host.match(/^([a-z0-9]+)\.supabase\.co$/)
+    return match?.[1] ?? null
+  } catch {
+    return null
+  }
 }
 
 export function getSupabaseConfigStatus(): SupabaseConfigStatus {
@@ -16,9 +30,13 @@ export function getSupabaseConfigStatus(): SupabaseConfigStatus {
     return {
       configured: false,
       url,
+      urlValid: false,
+      keyValid: false,
+      projectRef: url ? extractProjectRef(url) : null,
       reason: "missing",
       message:
         "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en frontend/.env.local",
+      dashboardApiUrl: null,
     }
   }
 
@@ -29,25 +47,64 @@ export function getSupabaseConfigStatus(): SupabaseConfigStatus {
     return {
       configured: false,
       url,
+      urlValid: false,
+      keyValid: false,
+      projectRef: null,
       reason: "invalid_url",
       message: "NEXT_PUBLIC_SUPABASE_URL no es una URL valida.",
+      dashboardApiUrl: null,
     }
   }
 
-  if (
-    PLACEHOLDER_HOSTS.includes(hostname) ||
-    PLACEHOLDER_KEY_MARKERS.some((m) => anonKey.toLowerCase().includes(m))
-  ) {
+  const projectRef = extractProjectRef(url)
+  const dashboardApiUrl = projectRef
+    ? `https://supabase.com/dashboard/project/${projectRef}/settings/api`
+    : null
+
+  const isPlaceholderHost = PLACEHOLDER_HOSTS.includes(hostname)
+  const isPlaceholderKey = PLACEHOLDER_KEY_MARKERS.some((m) =>
+    anonKey.toLowerCase().includes(m),
+  )
+
+  if (isPlaceholderHost) {
     return {
       configured: false,
       url,
-      reason: "placeholder",
+      urlValid: false,
+      keyValid: !isPlaceholderKey,
+      projectRef,
+      reason: "placeholder_url",
       message:
-        "Supabase esta en modo demo (placeholder.supabase.co). Crea un proyecto en supabase.com, actualiza frontend/.env.local con URL y anon key reales, y reinicia npm run dev.",
+        "NEXT_PUBLIC_SUPABASE_URL usa placeholder. Usa https://TU-REF.supabase.co (ej: nnbpaxomgxlbcgirmfor).",
+      dashboardApiUrl,
     }
   }
 
-  return { configured: true, url, reason: null, message: null }
+  if (isPlaceholderKey) {
+    return {
+      configured: false,
+      url,
+      urlValid: true,
+      keyValid: false,
+      projectRef,
+      reason: "placeholder_key",
+      message: projectRef
+        ? `URL del proyecto OK (${projectRef}). Falta la anon key: Supabase Dashboard → Settings → API → anon public.`
+        : "Falta la anon public key en NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      dashboardApiUrl,
+    }
+  }
+
+  return {
+    configured: true,
+    url,
+    urlValid: true,
+    keyValid: true,
+    projectRef,
+    reason: null,
+    message: null,
+    dashboardApiUrl,
+  }
 }
 
 export function isSupabaseConfigured(): boolean {
