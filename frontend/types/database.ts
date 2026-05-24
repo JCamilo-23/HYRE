@@ -1,6 +1,9 @@
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "12"
+  }
   public: {
     Tables: {
       profiles: {
@@ -28,6 +31,7 @@ export interface Database {
           role?: "candidate" | "recruiter"
           updated_at?: string
         }
+        Relationships: []
       }
       jobs: {
         Row: {
@@ -69,6 +73,7 @@ export interface Database {
           status?: "active" | "paused" | "closed"
           updated_at?: string
         }
+        Relationships: []
       }
       simulations: {
         Row: {
@@ -100,6 +105,7 @@ export interface Database {
           analysis?: Json | null
           completed_at?: string | null
         }
+        Relationships: []
       }
       subscriptions: {
         Row: {
@@ -129,6 +135,7 @@ export interface Database {
           status?: "active" | "canceled" | "past_due"
           current_period_end?: string | null
         }
+        Relationships: []
       }
       copilot_sessions: {
         Row: {
@@ -149,6 +156,7 @@ export interface Database {
           messages?: Json
           updated_at?: string
         }
+        Relationships: []
       }
     }
     Views: Record<string, never>
@@ -159,5 +167,6 @@ export interface Database {
       simulation_status: "pending" | "in_progress" | "completed" | "failed"
       subscription_plan: "free" | "pro" | "enterprise"
     }
+    CompositeTypes: Record<string, never>
   }
 }

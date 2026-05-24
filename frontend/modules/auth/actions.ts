@@ -12,14 +12,14 @@ export async function signUp(email: string, password: string, fullName: string, 
     options: { data: { full_name: fullName, role } },
   })
   if (error) throw new Error(error.message)
-  redirect("/")
+  redirect("/app?auth=success")
 }
 
 export async function signIn(email: string, password: string) {
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw new Error(error.message)
-  redirect("/")
+  redirect("/app?auth=success")
 }
 
 export async function signOut() {
@@ -30,7 +30,9 @@ export async function signOut() {
 
 export async function getProfile() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) return null
   const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single()
   return data
