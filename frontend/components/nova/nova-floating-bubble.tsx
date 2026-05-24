@@ -39,7 +39,7 @@ export function NovaFloatingBubble({ isOpen, onClick, hasUnread }: NovaFloatingB
       className={cn(
         "group relative flex items-center justify-center rounded-full",
         "bg-gradient-to-br from-[#7C3AED] via-[#8B5CF6] to-[#06B6D4]",
-        "border border-white/20 shadow-lg backdrop-blur-md",
+        "border border-white/20 shadow-lg",
         "transition-shadow hover:shadow-[0_12px_40px_rgba(124,58,237,0.45)]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A12]",
       )}

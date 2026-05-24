@@ -34,8 +34,7 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
       aria-label="Chat con Nova"
       className={cn(
         "flex flex-col overflow-hidden rounded-2xl border border-white/10",
-        "bg-[#0A0A12]/95 shadow-2xl shadow-[#7C3AED]/20 backdrop-blur-xl",
-        "glass-strong",
+        "bg-[#0A0A12] shadow-2xl shadow-[#7C3AED]/20",
         className,
       )}
     >
@@ -76,7 +75,7 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
                   "max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
                   message.role === "user"
                     ? "bg-[#7C3AED] text-[#F1F5F9]"
-                    : "glass text-[#F1F5F9]",
+                    : "bg-[#1E293B] text-[#F1F5F9] border border-white/5",
                 )}
               >
                 {message.content}
@@ -87,7 +86,7 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
 
         {isTyping && (
           <div className="flex justify-start">
-            <div className="glass flex items-center gap-2 rounded-2xl px-4 py-2.5">
+            <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-[#1E293B] px-4 py-2.5">
               <Loader2 className="h-4 w-4 animate-spin text-[#7C3AED]" />
               <span className="text-xs text-[#94A3B8]">Nova está escribiendo...</span>
             </div>
@@ -107,7 +106,7 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
                 key={suggestion}
                 type="button"
                 onClick={() => void handleSend(suggestion)}
-                className="rounded-full px-3 py-1.5 text-xs text-[#94A3B8] transition-colors glass hover:bg-white/10 hover:text-[#F1F5F9]"
+                className="rounded-full border border-white/5 bg-[#1E293B] px-3 py-1.5 text-xs text-[#94A3B8] transition-colors hover:bg-[#334155] hover:text-[#F1F5F9]"
               >
                 {suggestion}
               </button>
@@ -117,7 +116,7 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
       )}
 
       <footer className="border-t border-white/10 p-3">
-        <div className="flex items-center gap-2 rounded-2xl glass p-2">
+        <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-[#1E293B] p-2">
           <input
             type="text"
             value={input}

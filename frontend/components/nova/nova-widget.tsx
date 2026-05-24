@@ -30,7 +30,7 @@ export function NovaWidget() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={close}
-            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] md:bg-transparent md:backdrop-blur-none"
+            className="fixed inset-0 bg-black/10"
             style={{ zIndex: NOVA_Z_INDEX.backdrop }}
           />
         )}
@@ -46,11 +46,11 @@ export function NovaWidget() {
             {isOpen && (
               <motion.div
                 key="nova-panel"
-                initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
                 transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                className="pointer-events-auto absolute bottom-[calc(100%+12px)] left-4 right-4 sm:right-auto sm:w-[min(380px,calc(100vw-2rem))]"
+                className="pointer-events-auto absolute bottom-[calc(100%+12px)] left-4 right-4 sm:right-auto sm:w-[min(380px,calc(100vw-2rem))] isolate"
                 style={{ zIndex: NOVA_Z_INDEX.panel }}
               >
                 <NovaChatPanel
