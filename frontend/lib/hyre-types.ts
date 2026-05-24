@@ -38,6 +38,22 @@ export interface UserData {
   company?: CompanyProfile
 }
 
+export interface CvExperience {
+  role: string
+  company: string
+  duration: string
+}
+
+export interface CvAnalysis {
+  summary: string
+  keyPoints: string[]
+  skills: string[]
+  experience: CvExperience[]
+  education: string[]
+  strengths: string[]
+  suggestions: string[]
+}
+
 export const INDUSTRY_OPTIONS = [
   "Tecnologia",
   "Diseno",
