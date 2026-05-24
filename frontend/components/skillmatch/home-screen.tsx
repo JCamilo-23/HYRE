@@ -176,8 +176,8 @@ export function HomeScreen({ onNavigate, userData }: HomeScreenProps) {
             <div className="w-10 h-10 rounded-xl bg-[#06B6D4]/20 flex items-center justify-center mb-3">
               <Sparkles className="w-5 h-5 text-[#06B6D4]" />
             </div>
-            <p className="text-[#F1F5F9] font-medium text-sm">Simulacion</p>
-            <p className="text-[#94A3B8] text-xs">2 retos pendientes</p>
+            <p className="text-[#F1F5F9] font-medium text-sm">Simulador IA</p>
+            <p className="text-[#94A3B8] text-xs">Tareas con Gemini</p>
           </motion.button>
 
           <motion.button
