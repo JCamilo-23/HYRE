@@ -240,7 +240,6 @@ export function ReportScreen({ onNavigate }: ReportScreenProps) {
           Compartir badge en LinkedIn
         </Button>
 
-        {/* Talk to mentor */}
         <button
           type="button"
           onClick={() => openNova()}
