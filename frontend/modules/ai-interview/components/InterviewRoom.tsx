@@ -32,6 +32,10 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
     scores,
     lastHint,
     lastQuestion,
+    aiThinking,
+    phaseLabel,
+    progressPct,
+    conversation,
     transcriptLines,
     contentSummary,
     events,
@@ -190,7 +194,14 @@ export function InterviewRoom({ sessionId, role = "candidate" }: InterviewRoomPr
             )}
           </div>
 
-          <AIInterviewerPanel question={displayQuestion} connected={connected} />
+          <AIInterviewerPanel
+            question={displayQuestion}
+            connected={connected}
+            thinking={aiThinking}
+            phaseLabel={phaseLabel}
+            progressPct={progressPct}
+            conversation={conversation}
+          />
 
           {contentSummary && (
             <motion.div

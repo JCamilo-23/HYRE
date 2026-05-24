@@ -71,15 +71,15 @@ async def create_interview_session(body: CreateInterviewRequest) -> CreateInterv
     opening_question: str | None = None
     gemini_ready = bool(settings.GEMINI_API_KEY)
     if gemini_ready:
-        session = orchestrator.get_session(session_id) or {}
-        gemini = GeminiInterviewAnalyzer()
-        opening_question = gemini.generate_next_question(
-            history=[],
-            job_context=body.job_context or session.get("job_context", ""),
-            difficulty="medium",
-        )
-        session["opening_question"] = opening_question
-        orchestrator._persist_session(session_id, session)  # noqa: SLF001
+        try:
+            turn_payload = await orchestrator.start_interview_turn(session_id)
+            opening_question = turn_payload.get("question")
+            session = orchestrator.get_session(session_id) or {}
+            session["opening_question"] = opening_question
+            orchestrator._persist_session(session_id, session)  # noqa: SLF001
+        except Exception as exc:
+            logger.error("Opening interviewer turn failed: %s", exc)
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return CreateInterviewResponse(
         session_id=session_id,
@@ -139,22 +139,43 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
     conn_id = await ws_manager.connect(websocket, session_id, role="candidate")
 
     session = orchestrator.get_session(session_id) or {}
-    if session.get("opening_question"):
-        await ws_manager.send_json(
-            websocket,
-            {
-                "type": "interviewer_question",
-                "question": session["opening_question"],
-            },
-        )
-    elif settings.GEMINI_API_KEY:
-        gemini_boot = GeminiInterviewAnalyzer()
-        q = gemini_boot.generate_next_question(
-            history=[],
-            job_context=session.get("job_context", ""),
-            difficulty="medium",
-        )
-        await ws_manager.send_json(websocket, {"type": "interviewer_question", "question": q})
+
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        envelope = {"type": event, **payload}
+        await ws_manager.send_json(websocket, envelope)
+        await ws_manager.broadcast(session_id, envelope, exclude=conn_id)
+
+    if settings.GEMINI_API_KEY:
+        if session.get("current_question") or session.get("opening_question"):
+            q = session.get("current_question") or session.get("opening_question")
+            await ws_manager.send_json(
+                websocket,
+                {
+                    "type": "interviewer_question",
+                    "question": q,
+                    "phase": session.get("phase", "greeting"),
+                    "phase_label": session.get("phase_label", ""),
+                    "progress_pct": session.get("progress_pct", 0),
+                },
+            )
+            await ws_manager.send_json(
+                websocket,
+                {
+                    "type": "phase_update",
+                    "phase": session.get("phase", "greeting"),
+                    "phase_label": session.get("phase_label", ""),
+                    "progress_pct": session.get("progress_pct", 0),
+                    "difficulty": session.get("difficulty", "medium"),
+                },
+            )
+        else:
+            try:
+                await orchestrator.start_interview_turn(session_id, emit=emit)
+            except Exception as exc:
+                await ws_manager.send_json(
+                    websocket,
+                    {"type": "error", "message": str(exc)},
+                )
     else:
         await ws_manager.send_json(
             websocket,
@@ -163,9 +184,6 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                 "message": "GEMINI_API_KEY no configurada. Añádela en backend/.env y reinicia el servidor.",
             },
         )
-
-    async def emit(event: str, payload: dict[str, Any]) -> None:
-        await ws_manager.broadcast(session_id, {"type": event, **payload}, exclude=conn_id)
 
     try:
         while True:
@@ -207,14 +225,18 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                         {"type": "error", "message": str(exc)},
                     )
                     continue
-                hint = gemini.stream_coaching_hint(
-                    candidate_answer=text,
-                    stress_level=float(result.get("scores", {}).get("confidence_score", 50)),
-                )
-                await ws_manager.send_json(
-                    websocket,
-                    {"type": "coaching_hint", "hint": hint, **result},
-                )
+                try:
+                    hint = gemini.stream_coaching_hint(
+                        candidate_answer=text,
+                        stress_level=float(result.get("scores", {}).get("confidence_score", 50)),
+                    )
+                    await ws_manager.send_json(
+                        websocket,
+                        {"type": "coaching_hint", "hint": hint, **result},
+                    )
+                except Exception as exc:
+                    logger.warning("Coaching hint skipped: %s", exc)
+                    await ws_manager.send_json(websocket, {"type": "content_analysis", **result})
                 continue
 
             if event_type == "audio_chunk":
@@ -238,21 +260,13 @@ async def interview_websocket(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             if event_type == "request_question":
-                session = orchestrator.get_session(session_id) or {}
-                history = [
-                    {"role": m.get("role", "user"), "content": m.get("content", "")}
-                    for m in session.get("messages", [])
-                ]
-                q = gemini.generate_next_question(
-                    history=history,
-                    job_context=session.get("job_context", ""),
-                    difficulty=msg.get("difficulty", "medium"),
-                    emotion_hint=msg.get("emotion", "neutral"),
-                )
-                await ws_manager.broadcast(
-                    session_id,
-                    {"type": "interviewer_question", "question": q},
-                )
+                try:
+                    await orchestrator.request_interviewer_question(session_id, emit=emit)
+                except (RuntimeError, ValueError) as exc:
+                    await ws_manager.send_json(
+                        websocket,
+                        {"type": "error", "message": str(exc)},
+                    )
                 continue
 
             if event_type == "end_interview":

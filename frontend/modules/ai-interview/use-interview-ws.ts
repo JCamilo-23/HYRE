@@ -1,7 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { InterviewScores, InterviewWsEvent } from "./types"
+import type {
+  ConversationEntry,
+  InterviewPhaseId,
+  InterviewScores,
+  InterviewWsEvent,
+} from "./types"
 import { getInterviewWsUrl } from "./api"
 
 export function useInterviewWebSocket(sessionId: string | null) {
@@ -11,10 +16,21 @@ export function useInterviewWebSocket(sessionId: string | null) {
   const [scores, setScores] = useState<InterviewScores | null>(null)
   const [lastHint, setLastHint] = useState<string | null>(null)
   const [lastQuestion, setLastQuestion] = useState<string | null>(null)
+  const [lastInterviewerMessage, setLastInterviewerMessage] = useState<string | null>(null)
+  const [aiThinking, setAiThinking] = useState(false)
+  const [phase, setPhase] = useState<InterviewPhaseId | null>(null)
+  const [phaseLabel, setPhaseLabel] = useState<string | null>(null)
+  const [progressPct, setProgressPct] = useState(0)
+  const [difficulty, setDifficulty] = useState<string | null>(null)
+  const [conversation, setConversation] = useState<ConversationEntry[]>([])
   const [transcriptLines, setTranscriptLines] = useState<string[]>([])
   const [contentSummary, setContentSummary] = useState<string | null>(null)
   const [events, setEvents] = useState<InterviewWsEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+
+  const appendConversation = useCallback((entry: ConversationEntry) => {
+    setConversation((prev) => [...prev.slice(-24), entry])
+  }, [])
 
   const connect = useCallback(() => {
     if (!sessionId) return
@@ -33,6 +49,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
       try {
         const data = JSON.parse(ev.data) as InterviewWsEvent & {
           content?: { summary?: string }
+          message?: string
+          question?: string
+          thinking?: boolean
         }
         setEvents((prev) => [...prev.slice(-50), data])
 
@@ -42,17 +61,46 @@ export function useInterviewWebSocket(sessionId: string | null) {
         if (data.type === "coaching_hint" && "hint" in data) {
           setLastHint(data.hint)
         }
+        if (data.type === "ai_thinking" && "thinking" in data) {
+          setAiThinking(Boolean(data.thinking))
+        }
+        if (data.type === "phase_update") {
+          if ("phase" in data && data.phase) setPhase(data.phase)
+          if ("phase_label" in data) setPhaseLabel(data.phase_label)
+          if ("progress_pct" in data) setProgressPct(data.progress_pct)
+          if ("difficulty" in data && data.difficulty) setDifficulty(data.difficulty)
+        }
+        if (data.type === "interviewer_message") {
+          const msg = data.message || data.question || ""
+          const q = data.question || msg
+          setLastInterviewerMessage(msg)
+          setLastQuestion(q)
+          if (data.phase_label) setPhaseLabel(data.phase_label)
+          if (data.phase) setPhase(data.phase as InterviewPhaseId)
+          if (typeof data.progress_pct === "number") setProgressPct(data.progress_pct)
+          appendConversation({
+            role: "interviewer",
+            content: msg,
+            question: q,
+            phase: data.phase,
+          })
+        }
         if (data.type === "interviewer_question" && "question" in data) {
           setLastQuestion(data.question)
+          if (data.phase_label) setPhaseLabel(data.phase_label)
+          if (data.phase) setPhase(data.phase as InterviewPhaseId)
+          if (typeof data.progress_pct === "number") setProgressPct(data.progress_pct)
         }
         if (data.type === "interview_complete" && "final_score" in data) {
           setScores(data.final_score as InterviewScores)
+          setAiThinking(false)
         }
         if (data.type === "content_analysis" && data.content?.summary) {
           setContentSummary(data.content.summary)
         }
         if (data.type === "error" && "message" in data) {
           setError(data.message)
+          setAiThinking(false)
         }
       } catch {
         setError("Invalid server message")
@@ -66,7 +114,7 @@ export function useInterviewWebSocket(sessionId: string | null) {
       reconnectAttempt.current += 1
       setTimeout(() => connect(), delay)
     }
-  }, [sessionId])
+  }, [sessionId, appendConversation])
 
   useEffect(() => {
     connect()
@@ -94,9 +142,11 @@ export function useInterviewWebSocket(sessionId: string | null) {
       const trimmed = text.trim()
       if (!trimmed) return
       setTranscriptLines((prev) => [...prev, trimmed])
+      appendConversation({ role: "candidate", content: trimmed })
+      setAiThinking(true)
       send({ type: "transcript", text: trimmed, confidence })
     },
-    [send],
+    [send, appendConversation],
   )
 
   const sendVideoFrame = useCallback(
@@ -115,8 +165,9 @@ export function useInterviewWebSocket(sessionId: string | null) {
   )
 
   const requestQuestion = useCallback(() => {
-    send({ type: "request_question", difficulty: "medium" })
-  }, [send])
+    setAiThinking(true)
+    send({ type: "request_question", difficulty: difficulty ?? "medium" })
+  }, [send, difficulty])
 
   const endInterview = useCallback(() => {
     send({ type: "end_interview" })
@@ -127,6 +178,13 @@ export function useInterviewWebSocket(sessionId: string | null) {
     scores,
     lastHint,
     lastQuestion,
+    lastInterviewerMessage,
+    aiThinking,
+    phase,
+    phaseLabel,
+    progressPct,
+    difficulty,
+    conversation,
     transcriptLines,
     contentSummary,
     events,
