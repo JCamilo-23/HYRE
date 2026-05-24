@@ -84,7 +84,7 @@ export function UserTypeScreen({ onSelect }: UserTypeScreenProps) {
 
           {/* Features */}
           <div className="mt-4 flex flex-wrap gap-2">
-            {["Simulaciones", "Entrevista IA", "Badges", "Match IA"].map((feature) => (
+            {["Simulaciones", "Entrevista IA", "Badges", "Mentor Nova"].map((feature) => (
               <span
                 key={feature}
                 className={`px-3 py-1 rounded-full text-xs ${
@@ -151,7 +151,7 @@ export function UserTypeScreen({ onSelect }: UserTypeScreenProps) {
 
           {/* Features */}
           <div className="mt-4 flex flex-wrap gap-2">
-            {["Reportes IA", "Asistente Nova", "Pipeline", "Vacantes"].map((feature) => (
+            {["Reportes IA", "Aceptar candidatos", "Pipeline", "Vacantes"].map((feature) => (
               <span
                 key={feature}
                 className={`px-3 py-1 rounded-full text-xs ${

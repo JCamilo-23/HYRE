@@ -4,13 +4,13 @@ import { useEffect } from "react"
 import { NovaWidget } from "./nova-widget"
 import { useNovaStore } from "@/store/nova-store"
 
-interface EmployerNovaProps {
+interface CandidateNovaProps {
   showBottomNav: boolean
   userName: string
 }
 
-/** Nova solo para empresas — montaje local, no global */
-export function EmployerNova({ showBottomNav, userName }: EmployerNovaProps) {
+/** Nova solo para candidatos (usuarios naturales) */
+export function CandidateNova({ showBottomNav, userName }: CandidateNovaProps) {
   const { setVisible, setHasBottomNav, setUserName, close } = useNovaStore()
 
   useEffect(() => {
