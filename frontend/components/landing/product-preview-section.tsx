@@ -23,7 +23,7 @@ export function ProductPreviewSection() {
         />
 
         <FadeIn delay={0.1} className="mt-16">
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#120a24]/60 shadow-[0_0_80px_rgba(6,182,212,0.12)] backdrop-blur-2xl">
+          <div className="hyre-border-beam overflow-hidden rounded-3xl border border-white/10 bg-[#120a24]/60 shadow-[0_0_80px_rgba(6,182,212,0.12)] backdrop-blur-2xl">
             <div className="grid lg:grid-cols-12">
               <aside className="hidden border-r border-white/10 bg-black/20 p-6 lg:col-span-3 lg:block">
                 <p className="text-xs uppercase tracking-wider text-[#64748B]">HYRE</p>

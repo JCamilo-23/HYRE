@@ -12,7 +12,8 @@ import { GradientMesh } from "@/components/landing/gradient-mesh"
 
 export function LandingPage() {
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#0a0614] text-foreground">
+    <div className="landing-root relative min-h-screen overflow-x-hidden bg-[#0a0614] text-foreground">
+            <div className="hyre-grain" aria-hidden />
       <GradientMesh />
       <Navbar />
       <main>
