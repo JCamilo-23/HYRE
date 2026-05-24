@@ -6,6 +6,7 @@ import { SplashScreen } from "@/components/skillmatch/splash-screen"
 import { OnboardingScreen } from "@/components/skillmatch/onboarding-screen"
 import { UserTypeScreen } from "@/components/skillmatch/user-type-screen"
 import { RegisterScreen } from "@/components/skillmatch/register-screen"
+import { CompanyRegisterScreen, CompanyData } from "@/components/skillmatch/company-register-screen"
 import { HomeScreen } from "@/components/skillmatch/home-screen"
 import { MatchScreen } from "@/components/skillmatch/match-screen"
 import { SimulationScreen } from "@/components/skillmatch/simulation-screen"
@@ -32,6 +33,7 @@ export interface UserData {
   name: string
   email: string
   userType: "candidate" | "company" | null
+  companyData?: CompanyData
 }
 
 export default function HyreApp() {
@@ -73,6 +75,17 @@ export default function HyreApp() {
     setCurrentScreen("home")
   }
 
+  const handleCompanyRegisterComplete = (data: CompanyData) => {
+    setUserData({
+      name: data.companyName,
+      email: data.email,
+      userType: "company",
+      companyData: data,
+    })
+    setIsOnboarded(true)
+    setCurrentScreen("home")
+  }
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "splash":
@@ -82,7 +95,9 @@ export default function HyreApp() {
       case "userType":
         return <UserTypeScreen onSelect={handleUserTypeSelect} />
       case "register":
-        return <RegisterScreen userType={userType} onComplete={handleRegisterComplete} />
+        return userType === "company" 
+          ? <CompanyRegisterScreen onComplete={handleCompanyRegisterComplete} />
+          : <RegisterScreen userType={userType} onComplete={handleRegisterComplete} />
       case "home":
         return <HomeScreen onNavigate={setCurrentScreen} userData={userData} />
       case "match":
