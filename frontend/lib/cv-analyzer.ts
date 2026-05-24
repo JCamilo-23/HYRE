@@ -1,6 +1,7 @@
 import type { CvAnalysis } from "@/lib/hyre-types"
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+const REQUEST_TIMEOUT_MS = 55_000
 
 export function getGeminiVisionModels(): string[] {
   const primary = process.env.GEMINI_VISION_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
@@ -8,39 +9,53 @@ export function getGeminiVisionModels(): string[] {
     primary,
     "gemini-2.5-flash",
     "gemini-flash-latest",
-    "gemini-2.0-flash",
     "gemini-2.5-pro",
   ])]
 }
 
-const OCR_SYSTEM = `Eres un motor de OCR especializado en curriculums vitae.
-Tu unica tarea es transcribir el texto visible del documento.
-Reglas estrictas:
-- Copia SOLO texto que aparece en el documento, palabra por palabra.
-- Conserva nombres, fechas, empresas y titulos exactamente como se ven.
-- Si una palabra es ilegible escribe [ilegible].
-- NO inventes, NO resumas, NO completes informacion faltante.
-- Si el archivo no es un CV responde exactamente: NOT_A_CV`
-
-const ANALYSIS_SYSTEM = `Eres un analista de CVs para HYRE.
-Recibes texto extraido de un curriculum (OCR). Analiza UNICAMENTE ese texto.
-Reglas estrictas:
-- Usa SOLO informacion explicitamente presente en el texto.
-- NO inventes habilidades, experiencias, empresas ni estudios.
-- Si un campo no aparece en el texto, deja el array vacio o indica "No especificado en el CV" en el resumen.
-- Los puntos clave deben ser hechos verificables del texto, no suposiciones.
-- Las sugerencias pueden ser genericas de mejora de CV, pero los demas campos deben ser fieles al documento.
-Responde en espanol latinoamericano.`
-
 const CV_JSON_SCHEMA = {
   type: "OBJECT",
   properties: {
-    summary: { type: "STRING", description: "Resumen basado solo en el texto del CV" },
-    keyPoints: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-      description: "Hechos concretos extraidos del CV",
+    extractedText: {
+      type: "STRING",
+      description: "Transcripcion literal de todo el texto visible en el CV",
     },
+    summary: { type: "STRING" },
+    keyPoints: { type: "ARRAY", items: { type: "STRING" } },
+    skills: { type: "ARRAY", items: { type: "STRING" } },
+    experience: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          role: { type: "STRING" },
+          company: { type: "STRING" },
+          duration: { type: "STRING" },
+        },
+        required: ["role", "company", "duration"],
+      },
+    },
+    education: { type: "ARRAY", items: { type: "STRING" } },
+    strengths: { type: "ARRAY", items: { type: "STRING" } },
+    suggestions: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: [
+    "extractedText",
+    "summary",
+    "keyPoints",
+    "skills",
+    "experience",
+    "education",
+    "strengths",
+    "suggestions",
+  ],
+}
+
+const TEXT_ONLY_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    summary: { type: "STRING" },
+    keyPoints: { type: "ARRAY", items: { type: "STRING" } },
     skills: { type: "ARRAY", items: { type: "STRING" } },
     experience: {
       type: "ARRAY",
@@ -65,56 +80,97 @@ type GeminiPart =
   | { text: string }
   | { inline_data: { mime_type: string; data: string } }
 
-async function callGemini(
+type GeminiErrorBody = {
+  error?: { code?: number; message?: string; status?: string }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function parseRetryDelayMs(message: string): number | null {
+  const match = message.match(/retry in ([0-9.]+)s/i)
+  return match ? Math.ceil(parseFloat(match[1]) * 1000) : null
+}
+
+async function callGeminiOnce(
   apiKey: string,
   model: string,
   systemPrompt: string,
   parts: GeminiPart[],
-  options?: { json?: boolean; temperature?: number; maxTokens?: number },
-): Promise<string | null> {
-  const generationConfig: Record<string, unknown> = {
-    temperature: options?.temperature ?? 0.1,
-    maxOutputTokens: options?.maxTokens ?? 4096,
+  options?: { json?: boolean; schema?: Record<string, unknown>; temperature?: number; maxTokens?: number },
+): Promise<{ text: string | null; error?: string; retryable?: boolean }> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const generationConfig: Record<string, unknown> = {
+      temperature: options?.temperature ?? 0.1,
+      maxOutputTokens: options?.maxTokens ?? 8192,
+    }
+
+    if (options?.json) {
+      generationConfig.responseMimeType = "application/json"
+      generationConfig.responseSchema = options.schema ?? CV_JSON_SCHEMA
+    }
+
+    const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts }],
+        generationConfig,
+      }),
+    })
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as GeminiErrorBody
+      const message = body.error?.message ?? `HTTP ${res.status}`
+      console.warn(`Gemini CV [${model}]:`, message)
+      const retryable = res.status === 429 || body.error?.status === "RESOURCE_EXHAUSTED"
+      return { text: null, error: message, retryable }
+    }
+
+    const data = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[]
+    }
+
+    return { text: data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Error de red con Gemini"
+    console.warn(`Gemini CV [${model}] request failed:`, message)
+    return { text: null, error: message, retryable: message.includes("abort") }
+  } finally {
+    clearTimeout(timeout)
   }
-
-  if (options?.json) {
-    generationConfig.responseMimeType = "application/json"
-    generationConfig.responseSchema = CV_JSON_SCHEMA
-  }
-
-  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts }],
-      generationConfig,
-    }),
-  })
-
-  if (!res.ok) {
-    console.warn(`Gemini CV [${model}]:`, await res.text())
-    return null
-  }
-
-  const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[]
-  }
-
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null
 }
 
 async function callGeminiWithFallback(
   apiKey: string,
   systemPrompt: string,
   parts: GeminiPart[],
-  options?: { json?: boolean; temperature?: number; maxTokens?: number },
-): Promise<string | null> {
+  options?: { json?: boolean; schema?: Record<string, unknown>; temperature?: number; maxTokens?: number },
+): Promise<{ text: string | null; lastError?: string }> {
+  let lastError: string | undefined
+
   for (const model of getGeminiVisionModels()) {
-    const text = await callGemini(apiKey, model, systemPrompt, parts, options)
-    if (text) return text
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await callGeminiOnce(apiKey, model, systemPrompt, parts, options)
+      if (result.text) return { text: result.text }
+
+      lastError = result.error
+      if (result.retryable && result.error) {
+        const delay = parseRetryDelayMs(result.error) ?? 2000 * (attempt + 1)
+        await sleep(Math.min(delay, 8000))
+        continue
+      }
+      break
+    }
   }
-  return null
+
+  return { text: null, lastError }
 }
 
 function stripJsonFences(raw: string): string {
@@ -125,95 +181,129 @@ function stripJsonFences(raw: string): string {
   return text.trim()
 }
 
-function parseAnalysis(raw: string): CvAnalysis | null {
+function normalizeAnalysis(parsed: Partial<CvAnalysis>): CvAnalysis | null {
+  if (!parsed.summary || !Array.isArray(parsed.keyPoints)) return null
+  return {
+    summary: parsed.summary,
+    keyPoints: parsed.keyPoints ?? [],
+    skills: parsed.skills ?? [],
+    experience: parsed.experience ?? [],
+    education: parsed.education ?? [],
+    strengths: parsed.strengths ?? [],
+    suggestions: parsed.suggestions ?? [],
+  }
+}
+
+function parseVisionResponse(raw: string): { analysis: CvAnalysis; extractedText: string } | null {
   try {
-    const parsed = JSON.parse(stripJsonFences(raw)) as CvAnalysis
-    if (!parsed.summary || !Array.isArray(parsed.keyPoints)) return null
-    return {
-      summary: parsed.summary,
-      keyPoints: parsed.keyPoints ?? [],
-      skills: parsed.skills ?? [],
-      experience: parsed.experience ?? [],
-      education: parsed.education ?? [],
-      strengths: parsed.strengths ?? [],
-      suggestions: parsed.suggestions ?? [],
-    }
+    const parsed = JSON.parse(stripJsonFences(raw)) as Partial<CvAnalysis> & { extractedText?: string }
+    const analysis = normalizeAnalysis(parsed)
+    const extractedText = parsed.extractedText?.trim()
+    if (!analysis || !extractedText || extractedText.length < 20) return null
+    return { analysis, extractedText }
   } catch {
     return null
   }
 }
 
-export async function extractTextFromDocument(
+function parseTextResponse(raw: string): CvAnalysis | null {
+  try {
+    return normalizeAnalysis(JSON.parse(stripJsonFences(raw)) as Partial<CvAnalysis>)
+  } catch {
+    return null
+  }
+}
+
+const VISION_SYSTEM = `Eres un experto en OCR y analisis de CVs para HYRE.
+Recibes una imagen o PDF de curriculum vitae.
+
+Proceso obligatorio:
+1. Lee TODO el texto visible en el documento (OCR).
+2. Escribe la transcripcion literal completa en extractedText.
+3. Analiza UNICAMENTE ese texto para los demas campos.
+
+Reglas estrictas:
+- NO inventes datos que no aparezcan en el documento.
+- Nombres, empresas, fechas y titulos deben ser exactos a lo visible.
+- Si un dato no aparece, deja arrays vacios o indica "No especificado en el CV".
+- Responde en espanol latinoamericano.
+- Responde SOLO con JSON valido.`
+
+const TEXT_SYSTEM = `Eres un analista de CVs para HYRE.
+Analiza UNICAMENTE el texto proporcionado. NO inventes informacion.
+Responde en espanol latinoamericano. Responde SOLO con JSON valido.`
+
+export async function analyzeCvFromImageOrPdf(
   apiKey: string,
   mimeType: string,
   base64: string,
-): Promise<string | null> {
+): Promise<{ analysis: CvAnalysis; extractedText: string } | { error: string }> {
   const isImage = mimeType.startsWith("image/")
 
   const instruction = isImage
-    ? `Esta imagen es un curriculum vitae escaneado o fotografiado.
-Transcribe TODO el texto visible en la imagen, de arriba a abajo, seccion por seccion.
-Incluye: nombre, contacto, titulo profesional, experiencia, educacion, habilidades y cualquier otro texto legible.
-Responde SOLO con la transcripcion literal, sin comentarios adicionales.`
-    : `Este PDF es un curriculum vitae.
-Extrae TODO el texto del documento de forma literal y completa.
-Responde SOLO con la transcripcion, sin comentarios adicionales.`
+    ? `Analiza esta imagen de CV.
+Primero transcribe literalmente todo el texto visible en extractedText.
+Luego extrae resumen, puntos clave verificables, habilidades, experiencia, educacion, fortalezas y sugerencias basadas SOLO en ese texto.`
+    : `Analiza este PDF de CV.
+Primero transcribe literalmente todo el texto del documento en extractedText.
+Luego extrae los campos de analisis basados SOLO en ese texto.`
 
   const parts: GeminiPart[] = [
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: instruction },
   ]
 
-  return callGeminiWithFallback(apiKey, OCR_SYSTEM, parts, {
-    temperature: 0,
+  const { text, lastError } = await callGeminiWithFallback(apiKey, VISION_SYSTEM, parts, {
+    json: true,
+    schema: CV_JSON_SCHEMA,
+    temperature: 0.1,
     maxTokens: 8192,
   })
-}
 
-export async function analyzeCvText(apiKey: string, cvText: string): Promise<CvAnalysis | null> {
-  const prompt = `Analiza el siguiente CV transcrito. Usa UNICAMENTE esta informacion:
-
---- INICIO CV ---
-${cvText}
---- FIN CV ---
-
-Extrae resumen, puntos clave verificables, habilidades mencionadas, experiencia, educacion y fortalezas.
-No agregues datos que no esten en el texto.`
-
-  const raw = await callGeminiWithFallback(apiKey, ANALYSIS_SYSTEM, [{ text: prompt }], {
-    json: true,
-    temperature: 0.1,
-    maxTokens: 4096,
-  })
-
-  if (!raw) return null
-  return parseAnalysis(raw)
-}
-
-export async function analyzeCvFromDocument(
-  apiKey: string,
-  mimeType: string,
-  base64: string,
-): Promise<{ analysis: CvAnalysis; extractedText: string } | null> {
-  const extractedText = await extractTextFromDocument(apiKey, mimeType, base64)
-
-  if (!extractedText || extractedText === "NOT_A_CV") {
-    return null
+  if (!text) {
+    return {
+      error: lastError?.includes("quota") || lastError?.includes("429")
+        ? "Cuota de Gemini agotada. Espera un minuto e intenta de nuevo."
+        : "No se pudo leer el CV con IA. Verifica que la imagen sea legible.",
+    }
   }
 
-  if (extractedText.trim().length < 30) {
-    return null
+  const parsed = parseVisionResponse(text)
+  if (!parsed) {
+    return { error: "La IA no pudo interpretar el CV. Prueba con mejor calidad de imagen." }
   }
 
-  const analysis = await analyzeCvText(apiKey, extractedText)
-  if (!analysis) return null
-
-  return { analysis, extractedText }
+  return parsed
 }
 
 export async function analyzeCvFromPlainText(
   apiKey: string,
   text: string,
-): Promise<CvAnalysis | null> {
-  return analyzeCvText(apiKey, text)
+): Promise<{ analysis: CvAnalysis } | { error: string }> {
+  const prompt = `Analiza este CV:
+
+--- INICIO ---
+${text}
+--- FIN ---
+
+Extrae resumen, puntos clave, habilidades, experiencia, educacion, fortalezas y sugerencias.
+Usa SOLO informacion presente en el texto.`
+
+  const { text: raw, lastError } = await callGeminiWithFallback(apiKey, TEXT_SYSTEM, [{ text: prompt }], {
+    json: true,
+    schema: TEXT_ONLY_SCHEMA,
+    temperature: 0.1,
+    maxTokens: 4096,
+  })
+
+  if (!raw) {
+    return { error: lastError ?? "No se pudo analizar el CV." }
+  }
+
+  const analysis = parseTextResponse(raw)
+  if (!analysis) {
+    return { error: "Respuesta invalida de la IA." }
+  }
+
+  return { analysis }
 }

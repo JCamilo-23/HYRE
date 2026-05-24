@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
-  analyzeCvFromDocument,
+  analyzeCvFromImageOrPdf,
   analyzeCvFromPlainText,
 } from "@/lib/cv-analyzer"
 import { getGeminiApiKey } from "@/lib/gemini-server"
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024
+export const runtime = "nodejs"
+export const maxDuration = 60
+
+const MAX_FILE_BYTES = 4 * 1024 * 1024
 
 const ALLOWED_MIME = new Set([
   "application/pdf",
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Analisis con IA no disponible. Configura GEMINI_API_KEY en el servidor para leer imagenes y CVs.",
+            "Analisis con IA no disponible. Configura GEMINI_API_KEY en el servidor.",
         },
         { status: 503 },
       )
@@ -63,15 +66,12 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const analysis = await analyzeCvFromPlainText(apiKey, text)
-      if (!analysis) {
-        return NextResponse.json(
-          { error: "No se pudo analizar el CV. Intenta de nuevo." },
-          { status: 422 },
-        )
+      const result = await analyzeCvFromPlainText(apiKey, text)
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: 422 })
       }
 
-      return NextResponse.json({ analysis, extractedText: text, source: "text" })
+      return NextResponse.json({ analysis: result.analysis, extractedText: text, source: "text" })
     }
 
     const formData = await request.formData()
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: "El archivo supera el limite de 5 MB." }, { status: 400 })
+      return NextResponse.json({ error: "El archivo supera el limite de 4 MB." }, { status: 400 })
     }
 
     const mimeType = resolveMimeType(file)
@@ -94,7 +94,6 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const base64 = buffer.toString("base64")
 
     if (mimeType === "text/plain") {
       const text = buffer.toString("utf-8").trim()
@@ -102,25 +101,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "El CV en texto es muy corto." }, { status: 400 })
       }
 
-      const analysis = await analyzeCvFromPlainText(apiKey, text)
-      if (!analysis) {
-        return NextResponse.json(
-          { error: "No se pudo analizar el CV." },
-          { status: 422 },
-        )
+      const result = await analyzeCvFromPlainText(apiKey, text)
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: 422 })
       }
 
-      return NextResponse.json({ analysis, extractedText: text, source: "text" })
+      return NextResponse.json({ analysis: result.analysis, extractedText: text, source: "text" })
     }
 
-    const result = await analyzeCvFromDocument(apiKey, mimeType, base64)
+    const base64 = buffer.toString("base64")
+    const result = await analyzeCvFromImageOrPdf(apiKey, mimeType, base64)
 
-    if (!result) {
-      const hint = isImageMime(mimeType)
-        ? "No se pudo leer la imagen. Asegurate de que sea un CV legible, bien iluminado y con texto claro."
-        : "No se pudo leer el documento. Verifica que sea un CV valido."
-
-      return NextResponse.json({ error: hint }, { status: 422 })
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 422 })
     }
 
     return NextResponse.json({
@@ -130,6 +123,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("CV analyze error:", error)
-    return NextResponse.json({ error: "Error al analizar el CV." }, { status: 500 })
+    return NextResponse.json(
+      { error: "Error interno al analizar el CV. Intenta de nuevo." },
+      { status: 500 },
+    )
   }
 }

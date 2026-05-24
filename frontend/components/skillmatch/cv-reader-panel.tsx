@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { CvAnalysis } from "@/lib/hyre-types"
+import { analyzeCvFile } from "@/lib/cv-client"
 
 interface CvReaderPanelProps {
   userName?: string
@@ -30,6 +31,8 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
   const [analysis, setAnalysis] = useState<CvAnalysis | null>(null)
   const [extractedText, setExtractedText] = useState<string | null>(null)
   const [source, setSource] = useState<"vision" | "document" | "text" | null>(null)
+  const [loadingMessage, setLoadingMessage] = useState("Analizando con IA...")
+
   const [showExtracted, setShowExtracted] = useState(false)
 
   const analyzeFile = async (file: File) => {
@@ -38,40 +41,15 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
     setFileName(file.name)
     setExtractedText(null)
     setSource(null)
+    setLoadingMessage("Preparando archivo...")
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
+      setLoadingMessage("Leyendo CV con IA (puede tardar 30-60 seg)...")
+      const result = await analyzeCvFile(file)
 
-      const res = await fetch("/api/cv/analyze", {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = (await res.json()) as {
-        analysis?: CvAnalysis
-        extractedText?: string
-        source?: "vision" | "document" | "text"
-        error?: string
-      }
-
-      if (!res.ok) {
-        const msg = data.error ?? "No se pudo analizar el CV"
-        if (res.status === 503 && msg.includes("GEMINI_API_KEY")) {
-          throw new Error(
-            "Falta configurar la IA. Agrega GEMINI_API_KEY en frontend/.env.local (local) o en Vercel → Settings → Environment Variables (produccion), luego reinicia el servidor.",
-          )
-        }
-        throw new Error(msg)
-      }
-
-      if (!data.analysis) {
-        throw new Error("La IA no devolvio un analisis valido.")
-      }
-
-      setAnalysis(data.analysis)
-      setExtractedText(data.extractedText ?? null)
-      setSource(data.source ?? null)
+      setAnalysis(result.analysis)
+      setExtractedText(result.extractedText ?? null)
+      setSource(result.source ?? null)
       setOpen(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado")
@@ -112,7 +90,7 @@ export function CvReaderPanel({ userName }: CvReaderPanelProps) {
           <p className="text-[#F1F5F9] font-medium">Lector de CV</p>
           <p className="text-[#94A3B8] text-xs truncate">
             {loading
-              ? "Leyendo documento con IA..."
+              ? loadingMessage
               : fileName
                 ? fileName
                 : "Sube tu CV (PDF, PNG, JPG o TXT) — analisis real con IA"}
