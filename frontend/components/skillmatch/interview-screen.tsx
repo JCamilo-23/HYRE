@@ -171,47 +171,6 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     }
   }, [cameraOn])
 
-  // Transcripción con AssemblyAI — llamada por el VAD al detectar silencio
-  const transcribeAudio = useCallback(() => {
-    const chunks = [...chunksRef.current]
-    chunksRef.current = []
-    if (chunks.length < 2) return
-    const mime = chunks[0]?.type || "audio/webm"
-    const blob = new Blob(chunks, { type: mime })
-    if (blob.size < 500) return
-
-    setSttInterim("Transcribiendo...")
-    const reader = new FileReader()
-    reader.onloadend = async () => {
-      const b64 = (reader.result as string).split(",")[1]
-      try {
-        const res = await fetch("/api/interviews/transcribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: b64, mimeType: mime }),
-        })
-        const { text }: { text: string } = await res.json()
-        if (text?.trim()) {
-          setSttInterim("")
-          pendingRef.current = (pendingRef.current + " " + text).trim()
-          setInput(pendingRef.current)
-          if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-          autoSendTimer.current = setTimeout(() => {
-            const t = pendingRef.current
-            pendingRef.current = ""
-            if (t && !loadingRef.current) doSend(t)
-          }, 2500)
-        } else {
-          setSttInterim("")
-        }
-      } catch { setSttInterim("") }
-    }
-    reader.readAsDataURL(blob)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doSend])
-
-  useEffect(() => { transcribeRef.current = transcribeAudio }, [transcribeAudio])
-
   const doSend = useCallback((text: string) => {
     const trimmed = text.trim()
     if (!trimmed || loadingRef.current) return
@@ -260,6 +219,46 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     } catch { /* usa fallback del backend */ }
     setStage("report")
   }, [])
+
+  // Transcripción con AssemblyAI — definida después de doSend para evitar TDZ
+  const transcribeAudio = useCallback(() => {
+    const chunks = [...chunksRef.current]
+    chunksRef.current = []
+    if (chunks.length < 2) return
+    const mime = chunks[0]?.type || "audio/webm"
+    const blob = new Blob(chunks, { type: mime })
+    if (blob.size < 500) return
+
+    setSttInterim("Transcribiendo...")
+    const reader = new FileReader()
+    reader.onloadend = async () => {
+      const b64 = (reader.result as string).split(",")[1]
+      try {
+        const res = await fetch("/api/interviews/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio: b64, mimeType: mime }),
+        })
+        const { text }: { text: string } = await res.json()
+        if (text?.trim()) {
+          setSttInterim("")
+          pendingRef.current = (pendingRef.current + " " + text).trim()
+          setInput(pendingRef.current)
+          if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
+          autoSendTimer.current = setTimeout(() => {
+            const t = pendingRef.current
+            pendingRef.current = ""
+            if (t && !loadingRef.current) doSend(t)
+          }, 2500)
+        } else {
+          setSttInterim("")
+        }
+      } catch { setSttInterim("") }
+    }
+    reader.readAsDataURL(blob)
+  }, [doSend])
+
+  useEffect(() => { transcribeRef.current = transcribeAudio }, [transcribeAudio])
 
   const toggleStt = useCallback(() => {
     if (sttListening) {
