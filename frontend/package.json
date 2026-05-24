@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/ensure-dev-next.mjs && next dev --turbopack",
+    "dev": "node scripts/dev-with-recovery.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "db:types": "supabase gen types typescript --local > types/database.ts",
     "db:reset": "supabase db reset",
-    "dev:clean": "rm -rf .next node_modules/.cache && next dev --turbopack",
+    "dev:clean": "rm -rf .next node_modules/.cache && node scripts/dev-with-recovery.mjs",
     "dev:stable": "next dev"
   },
   "dependencies": {
