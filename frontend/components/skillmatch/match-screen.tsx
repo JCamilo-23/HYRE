@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from "framer-motion"
-import { 
-  X, 
-  Heart, 
-  Star, 
-  MapPin, 
-  Clock, 
-  Users, 
+import {
+  X,
+  Heart,
+  Star,
+  MapPin,
+  Clock,
+  Loader2,
+  Users,
   Laptop,
   ChevronDown,
   Sparkles
@@ -23,18 +24,40 @@ interface MatchScreenProps {
 
 export function MatchScreen({ onNavigate }: MatchScreenProps) {
   const addLike = useLikedCompaniesStore((s) => s.addLike)
-  const [cards, setCards] = useState(MATCH_COMPANIES)
+  const [cards, setCards] = useState<MatchCompany[]>([])
+  const [loading, setLoading] = useState(true)
   const [showMatch, setShowMatch] = useState(false)
   const [matchedCompany, setMatchedCompany] = useState<MatchCompany | null>(null)
   const [expandedCard, setExpandedCard] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/match/jobs")
+      .then((r) => r.json())
+      .then((data: MatchCompany[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCards(data)
+        } else {
+          setCards(MATCH_COMPANIES)
+        }
+      })
+      .catch(() => setCards(MATCH_COMPANIES))
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleSwipe = (direction: "left" | "right" | "up", company: MatchCompany) => {
     if (direction === "right" || direction === "up") {
       addLike(company)
       setMatchedCompany(company)
       setShowMatch(true)
+      // Crear job_match en DB si es vacante real
+      if (company.jobId) {
+        fetch("/api/match/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job_id: company.jobId, match_score: company.match }),
+        }).catch(console.error)
+      }
     }
-    
     setTimeout(() => {
       setCards((prev) => prev.filter((c) => c.id !== company.id))
     }, 200)
@@ -43,14 +66,27 @@ export function MatchScreen({ onNavigate }: MatchScreenProps) {
   const handleAction = (action: "reject" | "like" | "superlike") => {
     if (cards.length === 0) return
     const company = cards[0]
-    
     if (action === "like" || action === "superlike") {
       addLike(company)
       setMatchedCompany(company)
       setShowMatch(true)
+      if (company.jobId) {
+        fetch("/api/match/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job_id: company.jobId, match_score: company.match }),
+        }).catch(console.error)
+      }
     }
-    
     setCards((prev) => prev.slice(1))
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin" />
+      </div>
+    )
   }
 
   const currentCard = cards[0]
@@ -191,7 +227,7 @@ function SwipeCard({
         y: isTop ? y : 0,
         rotate: isTop ? rotate : 0,
         scale: 1 - index * 0.05,
-        zIndex: MATCH_COMPANIES.length - index,
+        zIndex: 10 - index,
       }}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}

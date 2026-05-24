@@ -1,5 +1,6 @@
 export interface MatchCompany {
-  id: number
+  id: string | number
+  jobId?: string
   name: string
   industry: string
   size: string

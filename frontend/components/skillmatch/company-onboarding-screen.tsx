@@ -145,8 +145,17 @@ export function CompanyOnboardingScreen({
     }
 
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    setIsLoading(false)
+    try {
+      await fetch("/api/company/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      })
+    } catch {
+      // No bloqueamos el flujo si falla — los datos se guardan igualmente en estado local
+    } finally {
+      setIsLoading(false)
+    }
     onComplete(profile)
   }
 

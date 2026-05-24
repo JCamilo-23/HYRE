@@ -4,6 +4,7 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { UserTypeScreen } from "@/components/skillmatch/user-type-screen"
 import { RegisterScreen } from "@/components/skillmatch/register-screen"
+import { OnboardingScreen } from "@/components/skillmatch/onboarding-screen"
 import { CompanyOnboardingScreen } from "@/components/skillmatch/company-onboarding-screen"
 import { HomeScreen } from "@/components/skillmatch/home-screen"
 import { EmployerHomeScreen } from "@/components/skillmatch/employer-home-screen"
@@ -49,8 +50,7 @@ export function HyreApp() {
       email: data.email,
       userType: userType,
     })
-    setIsOnboarded(true)
-    setCurrentScreen("home")
+    setCurrentScreen("onboarding")
   }
 
   const handleCompanyOnboardingComplete = (company: CompanyProfile) => {
@@ -84,6 +84,15 @@ export function HyreApp() {
             userType={userType}
             onComplete={handleRegisterComplete}
             onBack={() => setCurrentScreen("userType")}
+          />
+        )
+      case "onboarding":
+        return (
+          <OnboardingScreen
+            onComplete={() => {
+              setIsOnboarded(true)
+              setCurrentScreen("home")
+            }}
           />
         )
       case "companyOnboarding":
@@ -127,7 +136,7 @@ export function HyreApp() {
     }
   }
 
-  const onboardingScreens: Screen[] = ["userType", "register", "companyOnboarding"]
+  const onboardingScreens: Screen[] = ["userType", "register", "onboarding", "companyOnboarding"]
   const hiddenNavScreens: Screen[] = ["interview", "simulation", "settings"]
   const showBottomNav = isOnboarded && !onboardingScreens.includes(currentScreen) && !hiddenNavScreens.includes(currentScreen)
   const showCandidateNova = isOnboarded && userData.userType === "candidate"

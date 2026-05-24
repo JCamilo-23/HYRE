@@ -2,153 +2,234 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { FileText, Sparkles, Award, ChevronRight } from "lucide-react"
+import { ChevronRight, MapPin, Briefcase, Zap, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 interface OnboardingScreenProps {
   onComplete: () => void
 }
 
-const slides = [
-  {
-    id: 1,
-    icon: FileText,
-    title: "El CV no dice quien eres realmente",
-    subtitle: "67% de los jovenes no consigue trabajo por falta de experiencia",
-    gradient: "from-[#EF4444]/20 to-[#F59E0B]/10",
-    iconColor: "#EF4444",
-  },
-  {
-    id: 2,
-    icon: Sparkles,
-    title: "Demuestra tus habilidades en accion",
-    subtitle: "Simulaciones reales. Entrevistas con IA. Conexion genuina.",
-    gradient: "from-[#7C3AED]/20 to-[#06B6D4]/10",
-    iconColor: "#7C3AED",
-  },
-  {
-    id: 3,
-    icon: Award,
-    title: "Tu talento vale mas que tu papel",
-    subtitle: "Gana experiencia real aunque sea tu primera vez",
-    gradient: "from-[#10B981]/20 to-[#06B6D4]/10",
-    iconColor: "#10B981",
-  },
+const ROLES = [
+  "Frontend", "Backend", "Full Stack", "Diseño UX/UI",
+  "Marketing Digital", "Ventas", "Datos / IA", "Product Manager", "Otro",
 ]
 
-export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
-  const [currentSlide, setCurrentSlide] = useState(0)
+const SKILLS = [
+  "JavaScript", "TypeScript", "React", "Node.js", "Python", "SQL",
+  "Figma", "CSS", "Git", "Java", "Vue", "Angular", "Flutter", "Kotlin",
+  "Excel / Sheets", "Comunicación", "Liderazgo", "Inglés",
+]
 
-  const handleNext = () => {
-    if (currentSlide < slides.length - 1) {
-      setCurrentSlide(currentSlide + 1)
-    } else {
-      onComplete()
-    }
+const MODALITIES = [
+  { id: "remote", label: "Remoto", emoji: "💻" },
+  { id: "hybrid", label: "Híbrido", emoji: "🏢" },
+  { id: "onsite", label: "Presencial", emoji: "📍" },
+]
+
+function TagChip({
+  label,
+  selected,
+  onClick,
+  accent = "#7C3AED",
+}: {
+  label: string
+  selected: boolean
+  onClick: () => void
+  accent?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200"
+      style={{
+        backgroundColor: selected ? `${accent}33` : "#1A1A2E",
+        color: selected ? accent : "#94A3B8",
+        border: `1px solid ${selected ? accent : "rgba(255,255,255,0.1)"}`,
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+  const [step, setStep] = useState(0)
+  const [role, setRole] = useState("")
+  const [skills, setSkills] = useState<string[]>([])
+  const [city, setCity] = useState("")
+  const [modality, setModality] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  const toggleSkill = (s: string) =>
+    setSkills((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
+
+  const canNext = () => {
+    if (step === 0) return role !== ""
+    if (step === 1) return skills.length > 0
+    if (step === 2) return city.trim() !== "" && modality !== ""
+    return true
   }
 
-  const handleSkip = () => {
+  const handleNext = async () => {
+    if (step < 2) {
+      setStep(step + 1)
+      return
+    }
+    // Guardar en candidate_profiles
+    setSaving(true)
+    try {
+      await fetch("/api/candidate/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, skills, city, modality }),
+      })
+    } catch {
+      // No bloqueamos si falla
+    } finally {
+      setSaving(false)
+    }
     onComplete()
   }
 
-  const slide = slides[currentSlide]
-  const Icon = slide.icon
+  const steps = [
+    { icon: Briefcase, label: "Tu rol" },
+    { icon: Zap, label: "Tus skills" },
+    { icon: MapPin, label: "Tu ciudad" },
+  ]
 
   return (
     <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
-      {/* Skip button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSkip}
-          className="text-[#94A3B8] text-sm hover:text-[#F1F5F9] transition-colors"
-        >
-          Saltar
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col items-center text-center"
-          >
-            {/* Illustration area */}
-            <div className={`relative w-64 h-64 mb-12 rounded-3xl bg-gradient-to-br ${slide.gradient} flex items-center justify-center`}>
-              <div className="absolute inset-0 glass rounded-3xl" />
-              <motion.div
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
-              >
-                <Icon 
-                  className="w-24 h-24" 
-                  style={{ color: slide.iconColor }}
-                  strokeWidth={1.5}
-                />
-              </motion.div>
-              
-              {/* Decorative particles */}
-              {[...Array(6)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-2 h-2 rounded-full"
-                  style={{ backgroundColor: slide.iconColor }}
-                  initial={{ opacity: 0, scale: 0 }}
-                  animate={{ 
-                    opacity: [0, 0.6, 0],
-                    scale: [0, 1, 0],
-                    x: Math.cos(i * 60 * Math.PI / 180) * 80,
-                    y: Math.sin(i * 60 * Math.PI / 180) * 80,
-                  }}
-                  transition={{ 
-                    duration: 2, 
-                    repeat: Infinity, 
-                    delay: i * 0.3,
-                    ease: "easeInOut"
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Text */}
-            <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-4 leading-tight text-balance">
-              {slide.title}
-            </h1>
-            <p className="text-[#94A3B8] text-base leading-relaxed max-w-xs">
-              {slide.subtitle}
-            </p>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Progress dots */}
-      <div className="flex justify-center gap-2 mb-8">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => setCurrentSlide(index)}
-            className={`h-2 rounded-full transition-all duration-300 ${
-              index === currentSlide 
-                ? "w-8 bg-[#7C3AED]" 
-                : "w-2 bg-[#475569]"
-            }`}
+      {/* Progress */}
+      <div className="flex gap-2 mb-8">
+        {steps.map((_, i) => (
+          <div
+            key={i}
+            className="h-1 flex-1 rounded-full transition-all duration-300"
+            style={{ backgroundColor: i <= step ? "#7C3AED" : "#1A1A2E" }}
           />
         ))}
       </div>
 
-      {/* Next/Start button */}
-      <Button
-        onClick={handleNext}
-        className="w-full h-14 btn-primary-gradient text-[#F1F5F9] font-medium text-base flex items-center justify-center gap-2"
-      >
-        {currentSlide === slides.length - 1 ? "Comenzar" : "Siguiente"}
-        <ChevronRight className="w-5 h-5" />
-      </Button>
+      <div className="flex-1">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.25 }}
+          >
+            {step === 0 && (
+              <>
+                <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">¿Qué rol buscas?</h1>
+                <p className="text-[#94A3B8] text-sm mb-6">
+                  Así te conectamos con las empresas correctas
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {ROLES.map((r) => (
+                    <TagChip
+                      key={r}
+                      label={r}
+                      selected={role === r}
+                      onClick={() => setRole(r)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 1 && (
+              <>
+                <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">¿Qué sabes hacer?</h1>
+                <p className="text-[#94A3B8] text-sm mb-6">
+                  Selecciona tus habilidades — mínimo una
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {SKILLS.map((s) => (
+                    <TagChip
+                      key={s}
+                      label={s}
+                      selected={skills.includes(s)}
+                      onClick={() => toggleSkill(s)}
+                      accent="#06B6D4"
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">¿Dónde estás?</h1>
+                <p className="text-[#94A3B8] text-sm mb-6">
+                  Tu ciudad y preferencia de trabajo
+                </p>
+                <div className="mb-6">
+                  <label className="block text-[#F1F5F9] text-sm font-medium mb-2">
+                    <MapPin className="w-4 h-4 inline mr-1" />
+                    Ciudad
+                  </label>
+                  <Input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Ej. Barranquilla, Colombia"
+                    className="h-12 bg-[#1A1A2E] border-[rgba(255,255,255,0.1)] text-[#F1F5F9] placeholder:text-[#475569] focus:border-[#7C3AED]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#F1F5F9] text-sm font-medium mb-3">
+                    Modalidad preferida
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    {MODALITIES.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setModality(m.id)}
+                        className="flex items-center gap-3 p-4 rounded-xl text-left transition-all"
+                        style={{
+                          backgroundColor: modality === m.id ? "#7C3AED22" : "#1A1A2E",
+                          border: `1px solid ${modality === m.id ? "#7C3AED" : "rgba(255,255,255,0.1)"}`,
+                        }}
+                      >
+                        <span className="text-2xl">{m.emoji}</span>
+                        <span className="text-[#F1F5F9] font-medium">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <div className="flex flex-col gap-3 mt-8">
+        <Button
+          onClick={handleNext}
+          disabled={!canNext() || saving}
+          className="w-full h-14 btn-primary-gradient text-[#F1F5F9] font-medium text-base flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {saving ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              {step === 2 ? "¡Listo, buscar matches!" : "Siguiente"}
+              <ChevronRight className="w-5 h-5" />
+            </>
+          )}
+        </Button>
+        {step < 2 && (
+          <button
+            onClick={onComplete}
+            className="text-[#475569] text-sm text-center hover:text-[#94A3B8] transition-colors"
+          >
+            Saltar por ahora
+          </button>
+        )}
+      </div>
     </div>
   )
 }
