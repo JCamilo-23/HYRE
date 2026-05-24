@@ -29,7 +29,7 @@ export function CtaSection() {
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#C4B5FD]">
                 Únete a HYRE
               </p>
-              <h2 className="mx-auto mt-4 max-w-3xl font-display text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
+              <h2 className="mx-auto mt-4 max-w-3xl font-display text-3xl font-semibold leading-tight tracking-[-0.02em] text-white sm:text-4xl lg:text-[3.25rem] hyre-text-glow">
                 El futuro del trabajo empieza con evidencia, no con suposiciones.
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-base text-[#94A3B8] sm:text-lg">
