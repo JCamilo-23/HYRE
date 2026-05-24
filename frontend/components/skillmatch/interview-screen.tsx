@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Video, VideoOff, Mic, MicOff, Camera, Sun, Wifi, Headphones,
-  CheckCircle, AlertCircle, ArrowLeft, Loader2, Send, User, Sparkles,
+  CheckCircle, AlertCircle, ArrowLeft, Loader2, User, Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Screen } from "@/lib/hyre-types"
@@ -40,175 +40,52 @@ const checklistItems = [
 
 const JOB_CONTEXT = "Desarrollador Full Stack — HYRE"
 
-type SpeechRecognitionCtor = new () => SpeechRecognition
-function getSR(): SpeechRecognitionCtor | null {
-  if (typeof window === "undefined") return null
-  const w = window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null
-}
-
 export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   const [stage, setStage] = useState<Stage>("prep")
   const [accepted, setAccepted] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<Report | null>(null)
   const [timer, setTimer] = useState(0)
   const [micOn, setMicOn] = useState(true)
   const [cameraOn, setCameraOn] = useState(true)
   const [mediaError, setMediaError] = useState<string | null>(null)
-  const [sttListening, setSttListening] = useState(false)
-  const [sttInterim, setSttInterim] = useState("")
-  const [sttSupported, setSttSupported] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "error">("connecting")
+  const [userSpeaking, setUserSpeaking] = useState(false)
+  const [aiSpeaking, setAiSpeaking] = useState(false)
+  const [liveTranscript, setLiveTranscript] = useState("")
+  const [aiStreamText, setAiStreamText] = useState("")
+  const [waveform, setWaveform] = useState<number[]>(Array(16).fill(0))
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const messagesRef = useRef<Message[]>([])
-  const loadingRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const srRef = useRef<SpeechRecognition | null>(null)
-  const pendingRef = useRef("")
-  const autoSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wantListeningRef = useRef(false)
+  const pcRef = useRef<RTCPeerConnection | null>(null)
+  const dcRef = useRef<RTCDataChannel | null>(null)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animFrameRef = useRef<number>(0)
 
-  // Sync refs
   useEffect(() => { messagesRef.current = messages }, [messages])
-  useEffect(() => { loadingRef.current = loading }, [loading])
 
-  // Timer
   useEffect(() => {
     if (stage !== "live") return
     const id = setInterval(() => setTimer(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [stage])
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [messages, aiStreamText])
 
-  // Camera setup — solo cuando entra en "live"
-  useEffect(() => {
-    if (stage !== "live") return
-    let active = true
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then(media => {
-        if (!active) { media.getTracks().forEach(t => t.stop()); return }
-        streamRef.current = media
-        if (videoRef.current) videoRef.current.srcObject = media
-        // Auto-start STT once mic permission is granted
-        wantListeningRef.current = true
-        try { srRef.current?.start(); setSttListening(true) } catch { /* already running */ }
-      })
-      .catch(err => {
-        const name = err instanceof DOMException ? err.name : ""
-        setMediaError(
-          name === "NotAllowedError" || name === "PermissionDeniedError"
-            ? "Permiso de cámara denegado."
-            : "No se encontró cámara."
-        )
-      })
-    return () => {
-      active = false
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-    }
-  }, [stage])
-
-  // Restaurar srcObject cuando cameraOn vuelve a true
-  useEffect(() => {
-    if (cameraOn && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current
-    }
-  }, [cameraOn])
-
-  // STT setup — una sola vez
-  useEffect(() => {
-    const SR = getSR()
-    if (!SR) return
-    setSttSupported(true)
-    const sr = new SR()
-    sr.lang = "es-ES"
-    sr.continuous = true
-    sr.interimResults = true
-    sr.maxAlternatives = 1
-
-    sr.onresult = (ev) => {
-      let interim = ""
-      let final = ""
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const t = ev.results[i][0]?.transcript ?? ""
-        if (ev.results[i].isFinal) final += t
-        else interim += t
-      }
-      if (interim) setSttInterim(interim)
-      if (final.trim()) {
-        setSttInterim("")
-        if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-        pendingRef.current = (pendingRef.current + " " + final).trim()
-        setInput(pendingRef.current)
-        autoSendTimer.current = setTimeout(() => {
-          const text = pendingRef.current
-          pendingRef.current = ""
-          if (text && !loadingRef.current) doSend(text)
-        }, 1800)
-      }
-    }
-    sr.onerror = (ev) => {
-      // no-speech is benign — just restart
-      if (ev.error === "no-speech" && wantListeningRef.current) {
-        try { sr.start() } catch {}
-        return
-      }
-      setSttListening(false)
-    }
-    sr.onend = () => {
-      setSttListening(false)
-      // Chrome stops even with continuous:true — restart if we still want to listen
-      if (wantListeningRef.current) {
-        setTimeout(() => {
-          try { srRef.current?.start(); setSttListening(true) } catch {}
-        }, 150)
-      }
-    }
-    srRef.current = sr
-    return () => { sr.stop(); srRef.current = null }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const doSend = useCallback((text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || loadingRef.current) return
-    setInput("")
-    pendingRef.current = ""
-    const updated: Message[] = [...messagesRef.current, { role: "user", content: trimmed }]
-    setMessages(updated)
-    messagesRef.current = updated
-    loadingRef.current = true
-    setLoading(true)
-
-    fetch("/api/interviews/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history: updated, jobContext: JOB_CONTEXT }),
-    })
-      .then(r => r.json())
-      .then(({ reply, finished }: { reply: string; finished?: boolean }) => {
-        const final: Message[] = [...updated, { role: "assistant", content: reply }]
-        setMessages(final)
-        messagesRef.current = final
-        loadingRef.current = false
-        setLoading(false)
-        if (finished) setTimeout(() => doGenerateReport(final), 1200)
-      })
-      .catch(() => { loadingRef.current = false; setLoading(false) })
-  }, [])
-
+  // doGenerateReport — defined first; referenced by handleRealtimeEvent
   const doGenerateReport = useCallback(async (history: Message[]) => {
-    if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-    wantListeningRef.current = false
-    srRef.current?.stop()
+    cancelAnimationFrame(animFrameRef.current)
+    pcRef.current?.close()
+    pcRef.current = null
+    dcRef.current = null
+    audioElRef.current = null
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     setStage("processing")
@@ -219,22 +96,164 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         body: JSON.stringify({ history, jobContext: JOB_CONTEXT }),
       })
       setReport(await res.json())
-    } catch { /* usa fallback del backend */ }
+    } catch { /* fallback del backend */ }
     setStage("report")
   }, [])
 
-  const toggleStt = useCallback(() => {
-    const sr = srRef.current
-    if (!sr) return
-    if (sttListening) {
-      wantListeningRef.current = false
-      sr.stop()
-      setSttListening(false)
-    } else {
-      wantListeningRef.current = true
-      try { sr.start(); setSttListening(true) } catch { /* ya corriendo */ }
+  // handleRealtimeEvent — defined before connectRealtime
+  const handleRealtimeEvent = useCallback((ev: Record<string, unknown>) => {
+    switch (ev.type) {
+      case "input_audio_buffer.speech_started":
+        setUserSpeaking(true)
+        break
+      case "input_audio_buffer.speech_stopped":
+        setUserSpeaking(false)
+        break
+      case "conversation.item.input_audio_transcription.delta":
+        setLiveTranscript(p => p + ((ev.delta as string) ?? ""))
+        break
+      case "conversation.item.input_audio_transcription.completed": {
+        const t = ev.transcript as string
+        setLiveTranscript("")
+        if (t?.trim()) {
+          const updated = [...messagesRef.current, { role: "user" as const, content: t }]
+          setMessages(updated)
+          messagesRef.current = updated
+        }
+        break
+      }
+      case "response.audio_transcript.delta":
+        setAiSpeaking(true)
+        setAiStreamText(p => p + ((ev.delta as string) ?? ""))
+        break
+      case "response.audio_transcript.done": {
+        const t = ev.transcript as string
+        setAiStreamText("")
+        setAiSpeaking(false)
+        if (t?.trim()) {
+          const updated = [...messagesRef.current, { role: "assistant" as const, content: t }]
+          setMessages(updated)
+          messagesRef.current = updated
+          const aiCount = updated.filter(m => m.role === "assistant").length
+          if (aiCount >= 8 || t.includes("FINALIZAR")) {
+            setTimeout(() => doGenerateReport(updated), 1200)
+          }
+        }
+        break
+      }
     }
-  }, [sttListening])
+  }, [doGenerateReport])
+
+  // connectRealtime — defined before camera useEffect
+  const connectRealtime = useCallback(async (mediaStream: MediaStream) => {
+    setConnectionStatus("connecting")
+    try {
+      const tokenRes = await fetch("/api/interviews/realtime-token", { method: "POST" })
+      if (!tokenRes.ok) throw new Error("Token error")
+      const { client_secret } = await tokenRes.json()
+      const ephemeralKey = client_secret.value as string
+
+      const pc = new RTCPeerConnection()
+      pcRef.current = pc
+
+      const audioEl = document.createElement("audio")
+      audioEl.autoplay = true
+      audioElRef.current = audioEl
+      pc.ontrack = (e) => { audioEl.srcObject = e.streams[0] }
+
+      mediaStream.getAudioTracks().forEach(t => pc.addTrack(t, mediaStream))
+
+      const actx = new AudioContext()
+      const source = actx.createMediaStreamSource(mediaStream)
+      const analyser = actx.createAnalyser()
+      analyser.fftSize = 64
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const dc = pc.createDataChannel("oai-events")
+      dcRef.current = dc
+      dc.onopen = () => {
+        setConnectionStatus("connected")
+        dc.send(JSON.stringify({ type: "response.create" }))
+      }
+      dc.onmessage = (e) => {
+        try { handleRealtimeEvent(JSON.parse(e.data as string)) } catch { /* ignore */ }
+      }
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      const sdpRes = await fetch(
+        "https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ephemeralKey}`,
+            "Content-Type": "application/sdp",
+          },
+          body: offer.sdp,
+        }
+      )
+      if (!sdpRes.ok) throw new Error("SDP error")
+      await pc.setRemoteDescription({ type: "answer", sdp: await sdpRes.text() })
+    } catch (err) {
+      console.error("realtime connect:", err)
+      setConnectionStatus("error")
+    }
+  }, [handleRealtimeEvent])
+
+  // Camera + realtime setup
+  useEffect(() => {
+    if (stage !== "live") return
+    let active = true
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(async media => {
+        if (!active) { media.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = media
+        if (videoRef.current) videoRef.current.srcObject = media
+        await connectRealtime(media)
+      })
+      .catch(err => {
+        const name = err instanceof DOMException ? err.name : ""
+        setMediaError(
+          name === "NotAllowedError" || name === "PermissionDeniedError"
+            ? "Permiso de cámara/micrófono denegado."
+            : "No se encontró cámara o micrófono."
+        )
+      })
+    return () => {
+      active = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      pcRef.current?.close()
+      pcRef.current = null
+      cancelAnimationFrame(animFrameRef.current)
+    }
+  }, [stage, connectRealtime])
+
+  useEffect(() => {
+    if (cameraOn && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current
+    }
+  }, [cameraOn])
+
+  // Waveform animation loop
+  useEffect(() => {
+    if (connectionStatus !== "connected" || !analyserRef.current) return
+    const analyser = analyserRef.current
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    function tick() {
+      analyser.getByteFrequencyData(data)
+      setWaveform(
+        Array.from({ length: 16 }, (_, i) =>
+          (data[Math.floor((i / 16) * data.length)] ?? 0) / 255
+        )
+      )
+      animFrameRef.current = requestAnimationFrame(tick)
+    }
+    animFrameRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animFrameRef.current)
+  }, [connectionStatus])
 
   const handleToggleMic = useCallback(() => {
     setMicOn(prev => {
@@ -251,25 +270,8 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
     })
   }, [])
 
-  const handleSend = useCallback(() => {
-    if (autoSendTimer.current) clearTimeout(autoSendTimer.current)
-    const text = input.trim()
-    if (!text) return
-    doSend(text)
-  }, [input, doSend])
-
-  const handleStart = async () => {
+  const handleStart = () => {
     setLoading(true)
-    const res = await fetch("/api/interviews/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history: [], jobContext: JOB_CONTEXT }),
-    })
-    const { reply } = await res.json()
-    const initial: Message[] = [{ role: "assistant", content: reply }]
-    setMessages(initial)
-    messagesRef.current = initial
-    setLoading(false)
     setStage("live")
   }
 
@@ -284,7 +286,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           <ArrowLeft className="w-5 h-5" /> Volver
         </button>
         <h1 className="text-2xl font-semibold text-[#F1F5F9] mb-2">Entrevista con IA</h1>
-        <p className="text-[#94A3B8] text-sm mb-8">Practica con nuestro entrevistador IA impulsado por Gemini</p>
+        <p className="text-[#94A3B8] text-sm mb-8">Practica con Alex, tu entrevistador IA en tiempo real</p>
 
         <div className="glass rounded-2xl p-4 mb-6">
           <h3 className="text-[#F1F5F9] font-medium mb-4">Checklist pre-entrevista</h3>
@@ -305,15 +307,15 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           <h3 className="text-[#F1F5F9] font-medium mb-3">Información</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-[#94A3B8]">Duración estimada</span><span className="text-[#F1F5F9]">15-20 minutos</span></div>
-            <div className="flex justify-between"><span className="text-[#94A3B8]">Preguntas</span><span className="text-[#F1F5F9]">6-8 dinámicas</span></div>
-            <div className="flex justify-between"><span className="text-[#94A3B8]">Powered by</span><span className="text-[#7C3AED] font-medium">Gemini AI</span></div>
+            <div className="flex justify-between"><span className="text-[#94A3B8]">Preguntas</span><span className="text-[#F1F5F9]">7-8 dinámicas</span></div>
+            <div className="flex justify-between"><span className="text-[#94A3B8]">Powered by</span><span className="text-[#7C3AED] font-medium">OpenAI Realtime</span></div>
           </div>
         </div>
 
         <div className="glass rounded-2xl p-4 mb-auto">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
-            <p className="text-[#94A3B8] text-xs leading-relaxed">Esta es una entrevista de práctica con IA. Tus respuestas se usan para generar retroalimentación personalizada.</p>
+            <p className="text-[#94A3B8] text-xs leading-relaxed">Entrevista de voz en tiempo real con IA. Habla naturalmente y Alex te escuchará y responderá al instante.</p>
           </div>
         </div>
 
@@ -340,7 +342,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
             <Loader2 className="w-10 h-10 text-[#7C3AED] animate-spin" />
           </div>
           <h1 className="text-xl font-semibold text-[#F1F5F9] mb-2">Entrevista completada</h1>
-          <p className="text-[#94A3B8]">Gemini está analizando tus respuestas...</p>
+          <p className="text-[#94A3B8]">Analizando tus respuestas con IA...</p>
         </motion.div>
       </div>
     )
@@ -397,7 +399,7 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           </div>
 
           <div className="flex gap-3">
-            <Button onClick={() => { setStage("prep"); setMessages([]); setTimer(0); setReport(null) }}
+            <Button onClick={() => { setStage("prep"); setMessages([]); setTimer(0); setReport(null); setConnectionStatus("connecting") }}
               variant="outline" className="flex-1 h-12 glass border-white/15 text-[#F1F5F9]">Reintentar</Button>
             <Button onClick={() => onNavigate("home")} className="flex-1 h-12 btn-primary-gradient text-[#F1F5F9]">Volver al inicio</Button>
           </div>
@@ -409,17 +411,33 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
   // ── LIVE ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A12]">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 glass shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#EF4444] animate-pulse" />
-          <span className="text-[#EF4444] text-xs font-medium">Grabando</span>
+          {connectionStatus === "connected" ? (
+            <>
+              <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+              <span className="text-[#10B981] text-xs font-medium">En vivo</span>
+            </>
+          ) : connectionStatus === "connecting" ? (
+            <>
+              <Loader2 className="w-3 h-3 text-[#94A3B8] animate-spin" />
+              <span className="text-[#94A3B8] text-xs">Conectando...</span>
+            </>
+          ) : (
+            <>
+              <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
+              <span className="text-[#EF4444] text-xs">Error de conexión</span>
+            </>
+          )}
         </div>
         <span className="text-[#F1F5F9] font-mono text-sm">{formatTime(timer)}</span>
         <span className="text-[#94A3B8] text-xs">{messages.filter(m => m.role === "assistant").length} / 8</span>
       </div>
 
+      {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Camera — siempre montada, controlada por CSS */}
+        {/* Camera */}
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-[#1A1A2E] mb-2">
           <video
             ref={videoRef}
@@ -434,12 +452,23 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
               {mediaError && <p className="text-xs text-[#475569] text-center px-4">{mediaError}</p>}
             </div>
           )}
-          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 rounded-full px-3 py-1.5">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center">
+
+          {/* AI speaking ring */}
+          {aiSpeaking && (
+            <div className="absolute inset-0 rounded-2xl ring-2 ring-[#7C3AED]/60 pointer-events-none" />
+          )}
+
+          {/* AI label */}
+          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/60 rounded-full px-3 py-1.5">
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${aiSpeaking ? "bg-gradient-to-br from-[#7C3AED] to-[#9F67FF] animate-pulse" : "bg-gradient-to-br from-[#7C3AED] to-[#06B6D4]"}`}>
               <span className="text-white text-[10px] font-bold">AI</span>
             </div>
-            <span className="text-white text-xs">Alex — Entrevistador IA</span>
+            <span className="text-white text-xs">
+              {aiSpeaking ? "Alex está hablando..." : "Alex — Entrevistador IA"}
+            </span>
           </div>
+
+          {/* Controls */}
           <div className="absolute bottom-3 right-3 flex gap-2">
             <button onClick={handleToggleMic} className={`w-8 h-8 rounded-full flex items-center justify-center ${micOn ? "bg-white/20" : "bg-[#EF4444]"}`}>
               {micOn ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-white" />}
@@ -450,12 +479,15 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           </div>
         </div>
 
+        {/* Chat messages */}
         <AnimatePresence>
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "assistant" ? "bg-gradient-to-br from-[#7C3AED] to-[#06B6D4]" : "bg-[#1A1A2E]"}`}>
-                {msg.role === "assistant" ? <span className="text-white text-xs font-bold">AI</span> : <User className="w-4 h-4 text-[#94A3B8]" />}
+                {msg.role === "assistant"
+                  ? <span className="text-white text-xs font-bold">AI</span>
+                  : <User className="w-4 h-4 text-[#94A3B8]" />}
               </div>
               <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${msg.role === "assistant" ? "bg-[#1A1A2E] text-[#F1F5F9]" : "bg-[#7C3AED] text-white"}`}>
                 {msg.content}
@@ -464,47 +496,59 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
           ))}
         </AnimatePresence>
 
-        {loading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#06B6D4] flex items-center justify-center shrink-0">
-              <span className="text-white text-xs font-bold">AI</span>
-            </div>
-            <div className="bg-[#1A1A2E] px-4 py-3 rounded-2xl flex gap-1 items-center">
-              <span className="w-2 h-2 bg-[#7C3AED] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="w-2 h-2 bg-[#7C3AED] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="w-2 h-2 bg-[#7C3AED] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-          </motion.div>
-        )}
+        {/* AI streaming bubble */}
+        <AnimatePresence>
+          {aiStreamText && (
+            <motion.div key="ai-stream" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9F67FF] flex items-center justify-center shrink-0 animate-pulse">
+                <span className="text-white text-xs font-bold">AI</span>
+              </div>
+              <div className="max-w-[80%] bg-[#1A1A2E] px-4 py-3 rounded-2xl text-sm text-[#F1F5F9] leading-relaxed">
+                {aiStreamText}<span className="animate-pulse text-[#7C3AED]">▋</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-4 pb-6 pt-3 glass shrink-0">
-        {sttListening && sttInterim && (
-          <p className="text-xs text-[#7C3AED] mb-1 px-1 truncate">🎙 {sttInterim}</p>
-        )}
-        <div className="flex gap-2">
-          {sttSupported && (
-            <button onClick={toggleStt}
-              className={`w-10 h-10 self-end rounded-full flex items-center justify-center shrink-0 transition-colors ${sttListening ? "bg-[#EF4444] animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
-              <Mic className="w-4 h-4 text-white" />
-            </button>
-          )}
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder={sttSupported ? "Habla o escribe tu respuesta..." : "Escribe tu respuesta..."}
-            rows={2}
-            className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-[#64748B] focus:border-[#7C3AED]/50 focus:outline-none resize-none"
-          />
-          <button onClick={handleSend} disabled={!input.trim() || loading}
-            className="w-10 h-10 self-end rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9F67FF] flex items-center justify-center disabled:opacity-40">
-            <Send className="w-4 h-4 text-white" />
-          </button>
+      {/* Bottom — waveform + status */}
+      <div className="px-4 pb-6 pt-4 glass shrink-0">
+        {/* Waveform bars */}
+        <div className="flex items-end justify-center gap-1 h-10 mb-3">
+          {waveform.map((v, i) => (
+            <motion.div
+              key={i}
+              animate={{ height: `${Math.max(4, v * 40)}px` }}
+              transition={{ duration: 0.075 }}
+              className={`w-1.5 rounded-full ${
+                userSpeaking
+                  ? "bg-[#7C3AED]"
+                  : connectionStatus === "connected"
+                  ? "bg-white/25"
+                  : "bg-white/10"
+              }`}
+            />
+          ))}
         </div>
-        <button onClick={() => doGenerateReport(messages)}
-          className="mt-2 w-full text-xs text-[#475569] hover:text-[#94A3B8] transition-colors">
+
+        {/* Status text */}
+        <div className="text-center min-h-[20px] mb-2">
+          {userSpeaking ? (
+            <p className="text-xs text-[#7C3AED] animate-pulse">Escuchando...</p>
+          ) : liveTranscript ? (
+            <p className="text-xs text-[#94A3B8] truncate px-4">{liveTranscript}</p>
+          ) : connectionStatus === "connected" && !aiSpeaking ? (
+            <p className="text-xs text-[#475569]">Habla cuando estés listo...</p>
+          ) : null}
+        </div>
+
+        <button
+          onClick={() => doGenerateReport(messages)}
+          className="w-full text-xs text-[#475569] hover:text-[#94A3B8] transition-colors py-1"
+        >
           Terminar entrevista anticipadamente
         </button>
       </div>
