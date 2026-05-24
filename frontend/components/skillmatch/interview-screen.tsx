@@ -96,6 +96,8 @@ export function InterviewScreen({ onNavigate }: InterviewScreenProps) {
         if (!active) { media.getTracks().forEach(t => t.stop()); return }
         streamRef.current = media
         if (videoRef.current) videoRef.current.srcObject = media
+        // Auto-start STT once mic permission is granted
+        try { srRef.current?.start(); setSttListening(true) } catch { /* already running */ }
       })
       .catch(err => {
         const name = err instanceof DOMException ? err.name : ""
