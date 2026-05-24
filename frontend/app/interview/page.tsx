@@ -29,7 +29,7 @@ export default function InterviewLobbyPage() {
   }, [])
 
   useEffect(() => {
-    fetchInterviewAgents().then(setAgents)
+    fetchInterviewAgents().then(setAgents).catch(() => setAgents([]))
   }, [])
 
   async function startInterview() {

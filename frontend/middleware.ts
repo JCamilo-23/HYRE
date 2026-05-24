@@ -12,7 +12,14 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const { supabase, response } = createMiddlewareClient(request);
+    let supabase
+    let response: NextResponse
+    try {
+      ;({ supabase, response } = createMiddlewareClient(request))
+    } catch (clientError) {
+      console.error("[middleware] Failed to create Supabase client:", clientError)
+      return NextResponse.next()
+    }
     const {
       data: { session },
     } = await supabase.auth.getSession();
