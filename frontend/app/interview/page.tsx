@@ -20,9 +20,7 @@ export default function InterviewLobbyPage() {
       setGeminiOk(status.gemini_configured ?? false)
       if (!status.ok) setError(status.detail ?? null)
       else if (!status.gemini_configured) {
-        setError(
-          "GEMINI_API_KEY no está configurada en el backend (backend/.env). La entrevista requiere Gemini Pro.",
-        )
+        setError(null)
       }
     })
   }, [])
@@ -35,12 +33,6 @@ export default function InterviewLobbyPage() {
       if (!health.ok) {
         throw new Error(health.detail ?? "Backend no disponible")
       }
-      if (!health.gemini_configured) {
-        throw new Error(
-          "Configura GEMINI_API_KEY en backend/.env antes de iniciar la entrevista.",
-        )
-      }
-
       const candidateId =
         typeof window !== "undefined"
           ? localStorage.getItem("hyre_candidate_id") || crypto.randomUUID()
@@ -106,7 +98,8 @@ export default function InterviewLobbyPage() {
         {backendOk && geminiOk === false && (
           <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
             Añade <code className="rounded bg-black/30 px-1">GEMINI_API_KEY</code> en{" "}
-            <code className="rounded bg-black/30 px-1">backend/.env</code>
+            <code className="rounded bg-black/30 px-1">frontend/.env.local</code> o{" "}
+            <code className="rounded bg-black/30 px-1">backend/.env</code> para análisis con Gemini Pro.
           </div>
         )}
 
@@ -117,7 +110,7 @@ export default function InterviewLobbyPage() {
         {error && <p className="mt-4 text-sm text-[#F87171]">{error}</p>}
         <Button
           size="lg"
-          disabled={loading || backendOk === false || geminiOk === false}
+          disabled={loading || backendOk === false}
           className="mt-8 h-12 w-full rounded-full bg-gradient-to-r from-[#7C3AED] to-[#9F67FF]"
           onClick={startInterview}
         >

@@ -43,4 +43,30 @@ class Settings(BaseSettings):
     REQUIRE_GEMINI: bool = True
 
 
+
+def _load_frontend_gemini_key() -> None:
+    """Dev convenience: reuse frontend/.env.local GEMINI_API_KEY if backend .env is empty."""
+    import os
+    from pathlib import Path
+
+    if os.environ.get("GEMINI_API_KEY"):
+        return
+    root = Path(__file__).resolve().parents[3]
+    for name in (".env.local", ".env"):
+        env_file = root / "frontend" / name
+        if not env_file.is_file():
+            continue
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("GEMINI_API_KEY=") and not line.endswith("your-gemini-api-key"):
+                _, _, val = line.partition("=")
+                val = val.strip().strip('"').strip("'")
+                if val:
+                    os.environ["GEMINI_API_KEY"] = val
+                    return
+
+
+_load_frontend_gemini_key()
+
+
 settings = Settings()
