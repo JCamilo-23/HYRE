@@ -26,10 +26,14 @@ export function SectionHeader({
         className,
       )}
     >
-      <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#7C3AED]">
+      <p className="inline-flex items-center gap-2 text-sm font-medium uppercase tracking-[0.22em] text-[#7C3AED]">
+        <span className="h-px w-8 bg-gradient-to-r from-[#7C3AED] to-transparent sm:w-12" />
         {eyebrow}
+        {align === "center" && (
+          <span className="h-px w-8 bg-gradient-to-l from-[#7C3AED] to-transparent sm:w-12" />
+        )}
       </p>
-      <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
+      <h2 className="mt-5 font-display text-3xl font-semibold tracking-[-0.02em] text-white sm:text-4xl lg:text-[2.85rem] lg:leading-[1.08]">
         {title}
       </h2>
       {description && (
