@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Home, Target, Sparkles, Video, User } from "lucide-react"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 
 interface BottomNavProps {
   currentScreen: Screen

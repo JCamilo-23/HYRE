@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Sparkles
 } from "lucide-react"
-import { Screen } from "@/app/page"
+import { Screen } from "@/lib/hyre-types"
 
 interface MatchScreenProps {
   onNavigate: (screen: Screen) => void
