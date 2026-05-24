@@ -15,7 +15,6 @@ export const NOVA_BUBBLE_SIZE_PX = 56
 export const NOVA_BUBBLE_GAP_PX = 12
 
 export const NOVA_Z_INDEX = {
-  backdrop: 65,
-  bubble: 60,
-  panel: 70,
+  backdrop: 60,
+  widget: 70,
 } as const

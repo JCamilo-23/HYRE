@@ -11,7 +11,7 @@ import { NovaChatPanel } from "./nova-chat-panel"
 import { NovaFloatingBubble } from "./nova-floating-bubble"
 
 export function NovaWidget() {
-  const { isOpen, isVisible, hasBottomNav, toggle, close } = useNovaStore()
+  const { isOpen, isVisible, hasBottomNav, open, close } = useNovaStore()
 
   if (!isVisible) return null
 
@@ -21,11 +21,11 @@ export function NovaWidget() {
 
   return (
     <>
+      {/* Clic fuera del panel → cerrar (debajo del widget en z-index) */}
       <AnimatePresence>
         {isOpen && (
-          <motion.button
-            type="button"
-            aria-label="Cerrar panel de Nova"
+          <motion.div
+            role="presentation"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -36,10 +36,9 @@ export function NovaWidget() {
         )}
       </AnimatePresence>
 
-      {/* Contenedor alineado con la columna principal (max-w-md) */}
       <div
         className="pointer-events-none fixed inset-x-0"
-        style={{ bottom: bottomOffset, zIndex: NOVA_Z_INDEX.bubble }}
+        style={{ bottom: bottomOffset, zIndex: NOVA_Z_INDEX.widget }}
       >
         <div className="relative mx-auto h-0 w-full max-w-md px-4">
           <AnimatePresence>
@@ -50,20 +49,23 @@ export function NovaWidget() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 12 }}
                 transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                className="pointer-events-auto absolute bottom-[calc(100%+12px)] left-4 right-4 sm:right-auto sm:w-[min(380px,calc(100vw-2rem))] isolate"
-                style={{ zIndex: NOVA_Z_INDEX.panel }}
+                className="pointer-events-auto absolute bottom-[calc(100%+12px)] left-4 right-4 sm:right-auto sm:w-[min(380px,calc(100vw-2rem))]"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
               >
                 <NovaChatPanel
-                  onMinimize={close}
+                  onClose={close}
                   className="h-[min(520px,calc(100dvh-12rem))] w-full"
                 />
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="pointer-events-auto absolute bottom-0 left-4">
-            <NovaFloatingBubble isOpen={isOpen} onClick={toggle} />
-          </div>
+          {!isOpen && (
+            <div className="pointer-events-auto absolute bottom-0 left-4">
+              <NovaFloatingBubble onClick={open} />
+            </div>
+          )}
         </div>
       </div>
     </>

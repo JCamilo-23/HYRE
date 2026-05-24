@@ -2,17 +2,17 @@
 
 import { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { Loader2, Minimize2, Send, Sparkles } from "lucide-react"
+import { Loader2, Send, Sparkles, X } from "lucide-react"
 import { NOVA_SUGGESTIONS } from "@/modules/nova"
 import { useNovaChat } from "@/modules/nova/hooks"
 import { cn } from "@/lib/utils"
 
 interface NovaChatPanelProps {
-  onMinimize: () => void
+  onClose: () => void
   className?: string
 }
 
-export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
+export function NovaChatPanel({ onClose, className }: NovaChatPanelProps) {
   const { messages, isTyping, sendMessage } = useNovaChat()
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -50,11 +50,11 @@ export function NovaChatPanel({ onMinimize, className }: NovaChatPanelProps) {
         </div>
         <button
           type="button"
-          onClick={onMinimize}
+          onClick={onClose}
           className="rounded-lg p-2 text-[#94A3B8] transition-colors hover:bg-white/10 hover:text-[#F1F5F9]"
-          aria-label="Minimizar chat de Nova"
+          aria-label="Cerrar chat de Nova"
         >
-          <Minimize2 className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </button>
       </header>
 
