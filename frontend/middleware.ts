@@ -12,6 +12,8 @@ const PUBLIC_ROUTES = [
   "/onboarding",
   "/auth",
   "/auth/callback",
+  "/auth/social",
+  "/auth/return",
 ];
 
 export async function middleware(request: NextRequest) {

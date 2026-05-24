@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { createClient } from "@/lib/supabase/client"
 import { assertSupabaseConfigured, isSupabaseConfigured } from "@/lib/supabase/config-status"
 import { SupabaseConfigBanner } from "@/components/auth/supabase-config-banner"
-import { OAuthSetupBanner } from "@/components/auth/oauth-setup-banner"
 import { signInWithOAuthProvider } from "@/modules/auth/oauth"
 import { ensureUserProfile } from "@/modules/auth/ensure-profile"
 import { mapUserTypeToRole, getAuthCallbackUrl } from "@/modules/auth/utils"
@@ -81,11 +80,7 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
   const supabaseStatus = getSupabaseConfigStatus()
   const authProviders = useAuthProviders()
 
-  const visibleOAuthProviders = OAUTH_PROVIDERS.filter((p) =>
-    authProviders.enabledOAuth.includes(p.id),
-  )
-  const showOAuthSection =
-    authProviders.loading || visibleOAuthProviders.length > 0
+  const showOAuthSection = true
 
   const validateSignupForm = () => {
     const newErrors: Record<string, string> = {}
@@ -219,7 +214,6 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
     return (
       <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
         <SupabaseConfigBanner />
-        <OAuthSetupBanner providers={authProviders} />
 
         <div className="text-center mb-12 mt-8">
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#7C3AED]/20 to-[#06B6D4]/10 flex items-center justify-center glass">
@@ -245,31 +239,23 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
         )}
 
         <div className="flex-1 flex flex-col gap-3">
-          {authProviders.loading && (
-            <div className="flex h-14 items-center justify-center gap-2 text-sm text-[#64748B]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Comprobando proveedores de acceso...
-            </div>
-          )}
+          {OAUTH_PROVIDERS.map((provider) => (
+            <Button
+              key={provider.id}
+              onClick={() => void handleOAuth(provider.id)}
+              disabled={isLoading || loadingProvider !== null}
+              className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3 disabled:opacity-50"
+            >
+              {loadingProvider === provider.id ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                provider.icon
+              )}
+              {provider.label}
+            </Button>
+          ))}
 
-          {!authProviders.loading &&
-            visibleOAuthProviders.map((provider) => (
-              <Button
-                key={provider.id}
-                onClick={() => void handleOAuth(provider.id)}
-                disabled={!supabaseReady || isLoading || loadingProvider !== null}
-                className="w-full h-14 glass hover:bg-white/10 text-[#F1F5F9] font-medium flex items-center justify-center gap-3 disabled:opacity-50"
-              >
-                {loadingProvider === provider.id ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  provider.icon
-                )}
-                {provider.label}
-              </Button>
-            ))}
-
-          {showOAuthSection && !authProviders.loading && visibleOAuthProviders.length > 0 && (
+          {showOAuthSection && (
             <div className="flex items-center gap-4 my-4">
               <div className="flex-1 h-px bg-[#475569]/50" />
               <span className="text-[#475569] text-sm">o</span>
@@ -294,9 +280,9 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
             Usar correo electronico
           </Button>
 
-          {!authProviders.loading && !authProviders.email && (
+          {!authProviders.loading && !authProviders.email && supabaseReady && (
             <p className="text-center text-xs text-red-300/90">
-              El login por correo tambien esta deshabilitado en Supabase. Activa Email en
+              El login por correo esta deshabilitado en Supabase. Activa Email en
               Authentication → Providers.
             </p>
           )}
@@ -327,7 +313,6 @@ export function RegisterScreen({ userType, onComplete }: RegisterScreenProps) {
   return (
     <div className="min-h-screen flex flex-col px-6 py-8 safe-area-top safe-area-bottom">
       <SupabaseConfigBanner />
-      <OAuthSetupBanner providers={authProviders} />
 
       <button
         type="button"

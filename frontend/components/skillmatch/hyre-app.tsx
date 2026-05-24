@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client"
 import { mapRoleToUserType } from "@/modules/auth/utils"
 import { formatAuthError } from "@/lib/auth/error-messages"
 import type { Profile } from "@/modules/auth/types"
+import type { SocialSession } from "@/lib/auth/external-social"
 
 import type { Screen, UserData } from "@/lib/hyre-types"
 
@@ -34,6 +35,29 @@ export function HyreApp() {
     email: "",
     userType: null,
   })
+
+  const hydrateFromSocialSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/social/session")
+      if (!res.ok) return false
+
+      const data = (await res.json()) as { session: SocialSession | null }
+      if (!data.session) return false
+
+      const mappedType = mapRoleToUserType(data.session.role)
+      setUserData({
+        name: data.session.name,
+        email: data.session.email,
+        userType: mappedType,
+      })
+      setUserType(mappedType)
+      setIsOnboarded(true)
+      setCurrentScreen("home")
+      return true
+    } catch {
+      return false
+    }
+  }, [])
 
   const hydrateFromSession = useCallback(async () => {
     const supabase = createClient()
@@ -63,6 +87,11 @@ export function HyreApp() {
     return true
   }, [])
 
+  const hydrateUser = useCallback(async () => {
+    if (await hydrateFromSession()) return true
+    return hydrateFromSocialSession()
+  }, [hydrateFromSession, hydrateFromSocialSession])
+
   useEffect(() => {
     const authStatus = searchParams.get("auth")
     const reason = searchParams.get("reason")
@@ -72,21 +101,25 @@ export function HyreApp() {
       setCurrentScreen("register")
     }
 
+    if (authStatus === "success" && searchParams.get("social") === "1") {
+      setAuthError(null)
+    }
+
     void (async () => {
-      await hydrateFromSession()
+      await hydrateUser()
       setAuthChecking(false)
     })()
-  }, [searchParams, hydrateFromSession])
+  }, [searchParams, hydrateUser])
 
   useEffect(() => {
     const supabase = createClient()
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      void hydrateFromSession()
+      void hydrateUser()
     })
     return () => subscription.unsubscribe()
-  }, [hydrateFromSession])
+  }, [hydrateUser])
 
   const handleUserTypeSelect = (type: "candidate" | "company") => {
     setUserType(type)
