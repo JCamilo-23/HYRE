@@ -1,0 +1,22 @@
+{
+  "name": "HYRE — Demuestra tu potencial con IA",
+  "short_name": "HYRE",
+  "description": "Conecta con oportunidades laborales mediante IA y simulaciones inteligentes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0614",
+  "theme_color": "#7C3AED",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-light-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
